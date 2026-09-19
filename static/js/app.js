@@ -30,6 +30,7 @@
   let scannerFailures = 0
   let recordingStopArmed = false
   let recordingAbsentFrames = 0
+  let recordingAbsentSince = 0
   let recordingCodeSeenInCycle = false
   let recordingStartedAt = 0
   let autoSaveAfterStop = false
@@ -204,6 +205,7 @@
     scanAttempts = 0
     scannerFailures = 0
     recordingAbsentFrames = 0
+    recordingAbsentSince = 0
     recordingCodeSeenInCycle = false
   }
 
@@ -313,6 +315,7 @@
       }
       recordingCodeSeenInCycle = true
       recordingAbsentFrames = 0
+      recordingAbsentSince = 0
       if (!recordingStopArmed) return false
       scanFeedback.innerHTML = '<span></span> Same AWB detected — stopping and saving recording'
       autoSaveAfterStop = true
@@ -321,6 +324,30 @@
       return true
     }
     return acceptTrackingCode(candidate)
+  }
+
+  function prioritizeRecordingCode(rawValues) {
+    const values = rawValues.filter(Boolean)
+    if (recorder?.state !== 'recording') return values
+    const activeCode = normalizedCode()
+    return values.sort((left, right) => {
+      const leftMatches = sameRecordingCode(extractTrackingCode(left), activeCode) ? 1 : 0
+      const rightMatches = sameRecordingCode(extractTrackingCode(right), activeCode) ? 1 : 0
+      return rightMatches - leftMatches
+    })
+  }
+
+  function registerDetections(rawValues) {
+    const values = prioritizeRecordingCode(rawValues)
+    if (recorder?.state === 'recording') {
+      const activeCode = normalizedCode()
+      const matchingValue = values.find((value) => sameRecordingCode(extractTrackingCode(value), activeCode))
+      if (matchingValue) return registerDetection(matchingValue)
+      if (values.length) registerDetection(values[0])
+      return false
+    }
+    for (const value of values) if (registerDetection(value)) return true
+    return false
   }
 
   function drawScanCanvas() {
@@ -346,9 +373,8 @@
         return false
       }
       const data = await response.json()
-      for (const code of data.codes || []) {
-        if (requireRepeat ? registerDetection(code.text) : acceptTrackingCode(code.text)) return true
-      }
+      const values = (data.codes || []).map((code) => code.text)
+      if (requireRepeat ? registerDetections(values) : values.some((value) => acceptTrackingCode(value))) return true
       return false
     } catch {
       scannerFailures += 1
@@ -363,16 +389,16 @@
     recordingCodeSeenInCycle = false
     try {
       drawScanCanvas()
-      let rawValue = ''
+      let rawValues = []
       if (detector?.kind === 'native') {
         const results = await detector.reader.detect(preview)
-        rawValue = results[0]?.rawValue || ''
+        rawValues = results.map((result) => result.rawValue || '')
       } else if (detector?.kind === 'zxing') {
         // ZXing browser releases have exposed both synchronous and Promise results.
         const result = await Promise.resolve(detector.reader.decodeFromCanvas(scanCanvas))
-        rawValue = result.getText?.() || result.text || ''
+        rawValues = [result.getText?.() || result.text || '']
       }
-      if (rawValue && registerDetection(rawValue)) return
+      if (registerDetections(rawValues)) return
     } catch {
       // A transient unreadable frame is expected while the camera is moving.
     }
@@ -381,9 +407,17 @@
     const serverInterval = detector ? 3 : 1
     if (scanAttempts % serverInterval === 0 && await scanOnServer()) return
     if (recorder?.state === 'recording') {
-      if (recordingCodeSeenInCycle) recordingAbsentFrames = 0
-      else recordingAbsentFrames += 1
-      if (!recordingStopArmed && performance.now() - recordingStartedAt >= 2500 && recordingAbsentFrames >= 8) {
+      const now = performance.now()
+      if (recordingCodeSeenInCycle) {
+        recordingAbsentFrames = 0
+        recordingAbsentSince = 0
+      } else {
+        recordingAbsentFrames += 1
+        if (!recordingAbsentSince) recordingAbsentSince = now
+      }
+      const recordingOldEnough = now - recordingStartedAt >= 2000
+      const labelWasAwayLongEnough = recordingAbsentSince && now - recordingAbsentSince >= 650
+      if (!recordingStopArmed && recordingOldEnough && labelWasAwayLongEnough && recordingAbsentFrames >= 2) {
         recordingStopArmed = true
         scanFeedback.innerHTML = `<span></span> Recording linked to ${normalizedCode()} — scan the same AWB again to stop`
       }
@@ -513,6 +547,7 @@
     recordingStartedAt = performance.now()
     recordingStopArmed = false
     recordingAbsentFrames = 0
+    recordingAbsentSince = 0
     recordButton.disabled = false
     recordButton.classList.add('recording')
     recordButton.setAttribute('aria-label', 'Stop recording')

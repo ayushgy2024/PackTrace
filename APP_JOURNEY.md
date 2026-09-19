@@ -116,14 +116,14 @@ Version 1.2 progress
 
 Planning                 [██████████] 100%
 High-visibility UI       [█████████░]  90%
-Barcode reliability      [░░░░░░░░░░]   0%
+Barcode reliability      [███░░░░░░░]  30%
 Date and time             [████████░░]  80%
 Geotagging                [████████░░]  80%
 Mobile flash control      [███████░░░]  70%
 Mobile-browser QA         [███░░░░░░░]  30%
 Source-control approval   [██████████] 100%
 
-Overall                   [███████░░░]  70%
+Overall                   [███████░░░]  72%
 ```
 
 ### 1. High-visibility PackTrace camera interface
@@ -330,6 +330,23 @@ Deployment status: Not deployed / Preview / Production
 - **Deployment status:** Verified live on Vercel after the `main` push. The
   production URL returned HTTP 200 and contained the Version 1.2
   `PROOF CAPTURE` interface on the second deployment check.
+
+### 20 September 2026 — Reliable same-AWB stop detection
+
+- **Version:** 1.2 local working copy
+- **Area:** Live barcode scanner and automatic recording stop
+- **Reported issue:** The first AWB scan started recording, but presenting the
+  same barcode again did not reliably stop the recording.
+- **Root causes:** The browser path inspected only the first returned barcode on
+  multi-code labels, and stop detection required eight consecutive absent scan
+  cycles. Server-assisted cycles made the re-arm delay inconsistent.
+- **Resolution:** Inspect and prioritize all browser/server results, prefer the
+  currently recording AWB on multi-code labels, and use a short time-based label
+  absence plus two blank scan cycles to arm the second scan.
+- **Safety behavior:** A continuously visible AWB cannot immediately stop its own
+  recording. The label must leave the view before the same AWB can stop and save.
+- **Commit status:** Explicitly approved and included in the local commit
+- **Deployment status:** Not deployed
 
 ## Working rules
 
