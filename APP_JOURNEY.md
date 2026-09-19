@@ -7,9 +7,10 @@ is made. A task is complete only when its acceptance checks pass.
 ## Current position
 
 **Stable backup:** `packtrace-python v1.00.zip`  
-**Stable Git branch:** `main`  
-**Development branch:** `version-1.2`  
-**Current development phase:** Version 1.2 local implementation and QA
+**Production Git branch:** `main`  
+**Internal version label:** Version 1.2  
+**Branch policy:** `main` and `version-1.2` stay aligned to the same release commit  
+**Current development phase:** Version 1.2 deployment and mobile QA
 
 ```text
 PackTrace journey
@@ -92,8 +93,9 @@ Status: **Complete for testing**
 
 Status: **Frozen backup available**
 
-Version 1.00 is the preserved working baseline. New Version 1.2 work must not be
-copied to `main`, committed, pushed, or deployed without explicit approval.
+Version 1.00 is the preserved working baseline in the local ZIP backup. The
+GitHub `main` branch now follows the current approved Version 1.2 source so that
+Vercel production deployments are not left on an older branch revision.
 
 Baseline capabilities:
 
@@ -312,10 +314,29 @@ Deployment status: Not deployed / Preview / Production
 - **Push status:** Approved for `origin/version-1.2`
 - **Deployment status:** Not deployed; no approval to merge or deploy
 
+### 20 September 2026 — Git and Vercel branch alignment
+
+- **Version:** 1.2
+- **Area:** GitHub and Vercel production source
+- **Issue found:** The Version 1.2 commit was pushed only to `version-1.2`, while
+  GitHub's default branch and Vercel production source remained `main` at the
+  older Version 1.00 commit. The live site therefore returned the old interface.
+- **Resolution:** Keep Version 1.2 as the internal product label, fast-forward
+  `main` to the same release commit, and keep `main` and `version-1.2` aligned.
+- **Verification before fix:** The live Vercel URL returned HTTP 200 but did not
+  contain the Version 1.2 `PROOF CAPTURE` interface.
+- **Commit status:** Approved
+- **Push status:** Approved for both aligned branches
+- **Deployment status:** Vercel production redeployment expected from `main`;
+  live verification required after the build finishes
+
 ## Working rules
 
-1. Version 1.00 remains preserved in the ZIP backup and on `main`.
-2. Version 1.2 work happens on `version-1.2`.
-3. Every material edit is recorded in this document.
-4. Local edits and tests do not imply permission to commit.
-5. Commit, push, merge, and production deployment require explicit approval.
+1. Version 1.00 remains preserved in the local ZIP backup.
+2. Version 1.2 is the internal product version; GitHub branches should not carry
+   different application versions.
+3. `main` is the production source branch and must stay aligned with the approved
+   Version 1.2 release commit.
+4. Every material edit is recorded in this document.
+5. Local edits and tests do not imply permission to commit.
+6. Commit, push, merge, and production deployment require explicit approval.
