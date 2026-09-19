@@ -488,6 +488,6 @@
     if (event.key === 'Escape' && !modal.hidden) closeModal()
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); window.location.href = '/evidence' }
   })
-  $$('[data-demo-drive]').forEach((button) => button.addEventListener('click', () => showToast('Add Google OAuth credentials to enable Drive uploads')))
+  $$('[data-demo-drive]').forEach((button) => button.addEventListener('click', () => showToast('Persistent cloud storage is not configured yet')))
   $$('[data-safe-cleanup]').forEach((button) => button.addEventListener('click', () => showToast('No files are eligible: remote verification is not configured')))
 })()
