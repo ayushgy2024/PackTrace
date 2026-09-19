@@ -17,12 +17,17 @@ import zxingcpp
 
 
 BASE_DIR = Path(__file__).resolve().parent
-INSTANCE_DIR = BASE_DIR / "instance"
+IS_VERCEL = bool(os.environ.get("VERCEL"))
+# Vercel's deployed application directory is read-only.  /tmp is writable, but
+# it is intentionally ephemeral and is only a bridge until durable cloud
+# database/object storage is configured.
+DEFAULT_DATA_DIR = Path("/tmp/packtrace") if IS_VERCEL else BASE_DIR / "instance"
+INSTANCE_DIR = Path(os.environ.get("PACKTRACE_DATA_DIR", DEFAULT_DATA_DIR))
 VIDEO_DIR = INSTANCE_DIR / "private_evidence"
 DATABASE = INSTANCE_DIR / "packtrace.sqlite3"
 
 app = Flask(__name__, instance_path=str(INSTANCE_DIR), instance_relative_config=True)
-if os.environ.get("VERCEL") and not os.environ.get("PACKTRACE_SECRET_KEY"):
+if IS_VERCEL and not os.environ.get("PACKTRACE_SECRET_KEY"):
     raise RuntimeError("PACKTRACE_SECRET_KEY must be configured in Vercel.")
 app.config.update(
     MAX_CONTENT_LENGTH=1024 * 1024 * 1024,
@@ -30,7 +35,7 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=os.environ.get("PACKTRACE_COOKIE_SECURE") == "1"
-    or bool(os.environ.get("VERCEL")),
+    or IS_VERCEL,
     PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
 )
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)

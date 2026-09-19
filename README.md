@@ -41,6 +41,17 @@ Flask 3.1.3 is pinned in `requirements.txt`. If it is not already available:
 
 The `instance/` directory is intentionally ignored by Git.
 
+### Vercel storage limitation
+
+Vercel functions have a read-only application directory. PackTrace therefore
+uses `/tmp/packtrace` when it detects Vercel so the application can start and
+the authentication/scanning interface can be tested. Files in `/tmp` are not
+durable: the SQLite database and recordings can disappear whenever Vercel
+recycles or moves a function instance. Do not rely on this temporary storage
+for production evidence. A production Vercel deployment must use a persistent
+cloud database and object storage, with recordings uploaded directly from the
+browser to avoid serverless request-size limits.
+
 ## Google authentication
 
 PackTrace uses Google OpenID Connect and requests only `openid`, `profile`, and
@@ -56,7 +67,10 @@ PackTrace uses Google OpenID Connect and requests only `openid`, `profile`, and
 
 5. For Vercel, also add:
 
-   `https://YOUR-DOMAIN.vercel.app/auth/google/callback`
+   `https://pack-trace-gamma.vercel.app/auth/google/callback`
+
+After adding or changing Vercel environment variables, redeploy the project so
+the new deployment receives them.
 
 Set credentials for the current PowerShell window without saving them in Git:
 
