@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}Home · PackTrace{% endblock %}
-{% block heading %}Good morning, Ayush{% endblock %}
+{% block heading %}Good morning, {{ current_user.name.split()[0] if current_user else 'there' }}{% endblock %}
 {% block subheading %}Your evidence workspace is ready.{% endblock %}
 {% block content %}
 <section class="notice-card"><span class="notice-icon">☁</span><div><strong>Connect Google Drive to protect your evidence</strong><p>Recordings remain safely on this server until a verified upload completes.</p></div><a href="{{ url_for('settings') }}">Connect Drive →</a></section>

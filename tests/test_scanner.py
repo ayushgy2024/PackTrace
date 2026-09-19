@@ -1,8 +1,10 @@
 import io
+import os
 from pathlib import Path
 import tempfile
 import unittest
 import uuid
+from unittest import mock
 
 from PIL import Image
 import zxingcpp
@@ -18,9 +20,11 @@ class ScannerApiTests(unittest.TestCase):
         app_module.VIDEO_DIR = app_module.INSTANCE_DIR / "private_evidence"
         app_module.DATABASE = app_module.INSTANCE_DIR / "packtrace.sqlite3"
         app_module.init_db()
+        app_module.app.config["TESTING"] = True
         self.client = app_module.app.test_client()
 
     def tearDown(self):
+        app_module.app.config["TESTING"] = False
         app_module.INSTANCE_DIR, app_module.VIDEO_DIR, app_module.DATABASE = self.original_paths
         self.temp_dir.cleanup()
 
@@ -126,6 +130,39 @@ class ScannerApiTests(unittest.TestCase):
         settings = self.client.get("/settings")
         self.assertIn(b"Open-source foundation", settings.data)
         self.assertIn(b"independent, unofficial web application", settings.data)
+
+    def test_google_authentication_protects_pages_and_apis(self):
+        app_module.app.config["TESTING"] = False
+        with mock.patch.dict(os.environ, {"PACKTRACE_DEV_AUTH_BYPASS": "0"}):
+            page = self.client.get("/")
+            api = self.client.post("/api/recording-sessions", json={})
+            login = self.client.get("/login")
+            self.assertEqual(page.status_code, 302)
+            self.assertTrue(page.headers["Location"].endswith("/login"))
+            self.assertEqual(api.status_code, 401)
+            self.assertEqual(login.status_code, 200)
+            self.assertIn(b"Continue with Google", login.data)
+
+            with self.client.session_transaction() as browser_session:
+                browser_session["user"] = {
+                    "sub": "google-subject",
+                    "email": "owner@example.com",
+                    "name": "PackTrace Owner",
+                    "picture": "",
+                }
+            authorized = self.client.get("/")
+            self.assertEqual(authorized.status_code, 200)
+            self.assertIn(b"Good morning, PackTrace", authorized.data)
+
+    def test_google_email_allowlist_is_normalized(self):
+        with mock.patch.dict(
+            os.environ,
+            {"PACKTRACE_ALLOWED_EMAILS": " Owner@Example.com,staff@example.com "},
+        ):
+            self.assertEqual(
+                app_module.allowed_google_emails(),
+                {"owner@example.com", "staff@example.com"},
+            )
 
 
 if __name__ == "__main__":

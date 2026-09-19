@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#10281f">
+  <title>Sign in · PackTrace</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body class="auth-page">
+  <main class="auth-shell">
+    <section class="auth-card">
+      <span class="auth-mark">✓</span>
+      <p class="auth-kicker">PRIVATE PARCEL EVIDENCE</p>
+      <h1>Sign in to PackTrace</h1>
+      <p>Use your authorized Google account to access recordings and shipment data.</p>
+      {% if auth_error %}<div class="auth-error" role="alert">{{ auth_error }}</div>{% endif %}
+      <a class="google-button" href="{{ url_for('google_login') }}"><span>G</span> Continue with Google</a>
+      {% if not google_auth_configured %}<small class="auth-help">Google OAuth environment variables must be configured before sign-in can work.</small>{% endif %}
+      <div class="auth-privacy">Your Google password is never shared with PackTrace. Only your verified name, email, and profile picture are requested.</div>
+    </section>
+  </main>
+</body>
+</html>
