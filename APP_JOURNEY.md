@@ -120,10 +120,11 @@ Barcode reliability      [███░░░░░░░]  30%
 Date and time             [████████░░]  80%
 Geotagging                [████████░░]  80%
 Mobile flash control      [███████░░░]  70%
+Voice status prompts      [████████░░]  80%
 Mobile-browser QA         [███░░░░░░░]  30%
 Source-control approval   [██████████] 100%
 
-Overall                   [███████░░░]  72%
+Overall                   [███████░░░]  75%
 ```
 
 ### 1. High-visibility PackTrace camera interface
@@ -345,6 +346,26 @@ Deployment status: Not deployed / Preview / Production
   absence plus two blank scan cycles to arm the second scan.
 - **Safety behavior:** A continuously visible AWB cannot immediately stop its own
   recording. The label must leave the view before the same AWB can stop and save.
+- **Commit status:** Explicitly approved and included in the local commit
+- **Deployment status:** Not deployed
+
+### 20 September 2026 — Recording voice announcements
+
+- **Version:** 1.2 local working copy
+- **Area:** Operator feedback during capture
+- **Requested change:** Speak “Recording Started” when capture begins and
+  “Recording End” when capture stops.
+- **Resolution:** Added English on-device speech announcements using the
+  browser's built-in speech synthesis. Manual stops, same-AWB automatic stops,
+  close actions, and unexpected recorder stops share a guarded end announcement
+  so the phrase is not repeated. Voice selection prioritizes installed Indian
+  English female voices, then recognized English female voices across Android,
+  iPhone, Windows, and macOS. A clear higher-pitch fallback is used when the
+  browser does not expose a named female voice.
+- **Privacy behavior:** No text or audio is sent to the PackTrace server for
+  speech generation. Voice availability and pronunciation depend on the device.
+- **Known limitation:** The phone speaker announcement may be audible in the
+  recorded video's microphone track, which can be useful as an evidence cue.
 - **Commit status:** Explicitly approved and included in the local commit
 - **Deployment status:** Not deployed
 

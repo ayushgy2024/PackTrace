@@ -36,6 +36,8 @@
   let autoSaveAfterStop = false
   let recordingSessionId = ''
   let stopReason = 'MANUAL'
+  let recordingEndAnnounced = false
+  let preferredSpeechVoice = null
   let keyboardScanBuffer = ''
   let keyboardScanLastAt = 0
   let clockTimer = null
@@ -107,6 +109,44 @@
     toast.style.background = isError ? '#8f3434' : '#18382b'
     toast.hidden = false
     window.setTimeout(() => { toast.hidden = true }, 3400)
+  }
+
+  function selectFemaleSpeechVoice() {
+    if (!('speechSynthesis' in window)) return null
+    const voices = window.speechSynthesis.getVoices()
+    if (!voices.length) return null
+    const femaleNames = /female|veena|neerja|heera|isha|samantha|victoria|karen|moira|tessa|zira|aria|jenny|susan|hazel|ava|serena/i
+    const englishVoices = voices.filter((voice) => /^en(?:-|$)/i.test(voice.lang))
+    preferredSpeechVoice = englishVoices.find((voice) => /^en-IN$/i.test(voice.lang) && femaleNames.test(voice.name))
+      || englishVoices.find((voice) => femaleNames.test(voice.name))
+      || englishVoices.find((voice) => /^en-IN$/i.test(voice.lang))
+      || englishVoices[0]
+      || null
+    return preferredSpeechVoice
+  }
+
+  if ('speechSynthesis' in window) {
+    selectFemaleSpeechVoice()
+    window.speechSynthesis.addEventListener?.('voiceschanged', selectFemaleSpeechVoice)
+  }
+
+  function announceRecordingStatus(message) {
+    if (!('speechSynthesis' in window) || typeof window.SpeechSynthesisUtterance !== 'function') return
+    window.speechSynthesis.cancel()
+    const announcement = new window.SpeechSynthesisUtterance(message)
+    const voice = preferredSpeechVoice || selectFemaleSpeechVoice()
+    if (voice) announcement.voice = voice
+    announcement.lang = voice?.lang || 'en-IN'
+    announcement.rate = 0.95
+    announcement.pitch = voice && /female|veena|neerja|heera|isha|samantha|victoria|karen|moira|tessa|zira|aria|jenny|susan|hazel|ava|serena/i.test(voice.name) ? 1 : 1.15
+    announcement.volume = 1
+    window.speechSynthesis.speak(announcement)
+  }
+
+  function announceRecordingEnd() {
+    if (recordingEndAnnounced) return
+    recordingEndAnnounced = true
+    announceRecordingStatus('Recording End')
   }
 
   function updateCameraClock() {
@@ -254,7 +294,7 @@
   }
 
   function closeModal() {
-    if (recorder?.state === 'recording') recorder.stop()
+    if (recorder?.state === 'recording') stopRecording()
     stopStream()
     if (reviewVideo.src) URL.revokeObjectURL(reviewVideo.src)
     recordedBlob = null
@@ -515,6 +555,7 @@
     recorder = new MediaRecorder(stream, options)
     recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data) }
     recorder.onstop = () => {
+      announceRecordingEnd()
       recordedBlob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' })
       stopStream()
       reviewVideo.src = URL.createObjectURL(recordedBlob)
@@ -528,6 +569,8 @@
       }
     }
     recorder.start(1000)
+    recordingEndAnnounced = false
+    announceRecordingStatus('Recording Started')
     autoSaveAfterStop = false
     stopReason = 'MANUAL'
     recordingSessionId = newSessionId()
@@ -563,7 +606,10 @@
   }
 
   function stopRecording() {
-    if (recorder?.state === 'recording') recorder.stop()
+    if (recorder?.state === 'recording') {
+      recorder.stop()
+      announceRecordingEnd()
+    }
     recordButton.classList.remove('recording')
     recordButton.setAttribute('aria-label', 'Start recording')
     recordState.classList.remove('live')
