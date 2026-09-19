@@ -327,8 +327,9 @@ Deployment status: Not deployed / Preview / Production
   contain the Version 1.2 `PROOF CAPTURE` interface.
 - **Commit status:** Approved
 - **Push status:** Approved for both aligned branches
-- **Deployment status:** Vercel production redeployment expected from `main`;
-  live verification required after the build finishes
+- **Deployment status:** Verified live on Vercel after the `main` push. The
+  production URL returned HTTP 200 and contained the Version 1.2
+  `PROOF CAPTURE` interface on the second deployment check.
 
 ## Working rules
 
