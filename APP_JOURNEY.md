@@ -1,0 +1,321 @@
+# PackTrace — Product Journey and Version Progress
+
+This is the living development record for PackTrace. Update it whenever a
+feature, fix, design change, test result, deployment change, or release decision
+is made. A task is complete only when its acceptance checks pass.
+
+## Current position
+
+**Stable backup:** `packtrace-python v1.00.zip`  
+**Stable Git branch:** `main`  
+**Development branch:** `version-1.2`  
+**Current development phase:** Version 1.2 local implementation and QA
+
+```text
+PackTrace journey
+
+Foundation       Scanner          Workflow         Deployment       Version 1.2
+[██████████] → [██████████] → [██████████] → [██████████] → [░░░░░░░░░░]
+   Complete         Complete*         Complete          Live             Planned
+
+* Basic scanning exists, but real courier-label reliability needs improvement.
+```
+
+## Version history
+
+### Foundation — Python web application
+
+Status: **Complete**
+
+- Replaced the earlier mobile-app direction with a Python Flask web application.
+- Added an English-only interface for outbound and RTO evidence.
+- Added local SQLite metadata storage and private video-file storage.
+- Created dashboard, evidence library, upload queue, settings, and recording UI.
+- Added a virtual environment and pinned Python dependencies.
+
+### Scanner foundation
+
+Status: **Complete, reliability improvements required**
+
+- Added QR and common 1D/2D barcode support.
+- Added browser `BarcodeDetector` support when the browser provides it.
+- Bundled ZXing Browser as the browser fallback.
+- Added Python ZXing-C++ image decoding as the server fallback.
+- Added label-photo scanning and keyboard-mode USB scanner support.
+- Added basic image contrast, sharpening, rotation, inversion, and scaling passes.
+- Added tests for clean QR and Code 128 samples.
+- Known limitation: real labels can be rotated, reflective, wrinkled, blurred,
+  contain multiple codes, or contain bars that become too small after resizing.
+
+### Scan-to-record workflow
+
+Status: **Complete**
+
+- First valid AWB scan starts recording automatically.
+- The label must leave the camera view before recording can be stopped by scan.
+- Scanning the same AWB again stops and automatically saves the recording.
+- A different AWB cannot stop the active recording.
+- Added recording-session audit data, stop reasons, hashes, and duplicate warnings.
+- Added manual AWB entry for damaged or unreadable labels.
+
+### Open-source workflow reference
+
+Status: **Complete**
+
+- Studied the PackingProof Desktop workflow.
+- Reimplemented applicable workflow ideas in the English PackTrace web interface.
+- Added attribution and kept PackTrace independent and unofficial.
+
+### GitHub and deployment
+
+Status: **Complete for testing**
+
+- Created the Git repository and pushed it to `ayushgy2024/PackTrace`.
+- Connected the project to Vercel.
+- Updated Vercel runtime paths to use writable `/tmp` storage.
+- Removed Google sign-in and made the application directly accessible.
+- Created a complete local Version 1.00 ZIP backup, including Git metadata,
+  virtual environment, database, recordings, and source files.
+- Important limitation: Vercel `/tmp` storage is temporary. Production evidence
+  still requires durable cloud database and object storage.
+
+## Git milestones
+
+| Commit | Change | Included in Version 1.00 |
+|---|---|---|
+| `5e2b0e6` | Initial PackTrace Python web application | Yes |
+| `42c1d51` | Google authentication experiment | Superseded |
+| `5b9d32b` | Vercel writable runtime storage | Yes |
+| `385157f` | Google authentication removed | Yes |
+
+## Version 1.00 — preserved baseline
+
+Status: **Frozen backup available**
+
+Version 1.00 is the preserved working baseline. New Version 1.2 work must not be
+copied to `main`, committed, pushed, or deployed without explicit approval.
+
+Baseline capabilities:
+
+- English Flask web interface.
+- Camera recording from a mobile or desktop browser.
+- QR, Data Matrix, and common linear-barcode decoding paths.
+- Automatic recording start on the first accepted AWB.
+- Automatic stop and save when the same AWB is scanned again.
+- Local evidence database, file hashing, review, and duplicate-AWB warnings.
+- Public Vercel test deployment without Google authentication.
+
+## Version 1.2 — planned experience
+
+Status: **Development snapshot approved for commit and push; not deployed**
+
+```text
+Version 1.2 progress
+
+Planning                 [██████████] 100%
+High-visibility UI       [█████████░]  90%
+Barcode reliability      [░░░░░░░░░░]   0%
+Date and time             [████████░░]  80%
+Geotagging                [████████░░]  80%
+Mobile flash control      [███████░░░]  70%
+Mobile-browser QA         [███░░░░░░░]  30%
+Source-control approval   [██████████] 100%
+
+Overall                   [███████░░░]  70%
+```
+
+### 1. High-visibility PackTrace camera interface
+
+The supplied orange screen was used only to understand the required feature
+hierarchy. The PackTrace result uses an original structure and visual identity.
+
+Planned elements:
+
+- Full-screen live camera preview with a dark lower control area.
+- Electric chartreuse scan gate and primary controls for strong visibility in
+  bright warehouses, dim rooms, and visually busy camera scenes.
+- Large elapsed recording timer.
+- Visible FPS and camera-resolution indicators when available.
+- Clear “waiting for AWB scan” and recording states.
+- Large central record/package control.
+- Flash control, camera-switch control, and manual-entry control.
+- Mobile safe-area spacing for notches and browser controls.
+- PackTrace branding; do not copy the reference app’s name or protected assets.
+
+Acceptance checks:
+
+- [ ] Fits common Android and iPhone portrait screens without horizontal scroll.
+- [ ] Camera preview remains usable when browser toolbars expand or collapse.
+- [x] Scanning, recording, stopping, saving, and manual entry remain accessible.
+- [x] Controls have clear pressed, disabled, unavailable, and active states.
+- [x] Desktop layout remains usable.
+
+### 2. Real-label barcode reliability
+
+Primary example: Flipkart label with AWB `FMPP3745118B20`, a narrow linear
+barcode, and a separate square Data Matrix symbol.
+
+Planned work:
+
+- Process every detected code instead of only the first browser result.
+- Prefer an AWB-shaped linear-barcode result when several symbols are present.
+- Preserve more camera resolution for narrow 1D bars.
+- Add barcode-focused regions of interest and multi-scale decoding.
+- Avoid blocking browser scans while a server fallback request is in flight.
+- Improve rotated-label and low-contrast preprocessing.
+- Add real-label regression fixtures with private information redacted.
+- Display actionable guidance for blur, glare, distance, and unsupported codes.
+
+Acceptance checks:
+
+- [ ] Reads the intended AWB rather than unrelated routing-code content.
+- [ ] Reads landscape and portrait labels at 0°, 90°, 180°, and 270°.
+- [ ] Handles a label containing both a Data Matrix and a linear barcode.
+- [ ] Does not start recording from an unrelated product barcode.
+- [ ] Same-AWB rescan reliably stops the correct recording.
+- [ ] Synthetic tests and real-label tests pass.
+
+### 3. Date and time
+
+Planned work:
+
+- Show the device’s live local date and time on the camera interface.
+- Store recording start and stop timestamps in UTC.
+- Show the local timezone alongside the human-readable display.
+- Decide separately whether date/time must be permanently burned into the video.
+
+Acceptance checks:
+
+- [x] Display updates without affecting scanner performance.
+- [x] Saved evidence contains reliable UTC timestamps.
+- [ ] Timezone and local display are understandable and consistent.
+- [ ] Permission denial is not relevant to date/time operation.
+
+### 4. Geotagging
+
+Privacy rule: request location only after a clear user action and explain why it
+is needed. Never silently block recording when location is unavailable.
+
+Planned work:
+
+- Ask for browser geolocation permission.
+- Capture latitude, longitude, accuracy, and capture time.
+- Store coordinates with the recording-session and evidence records.
+- Show permission, locating, captured, unavailable, and denied states.
+- Provide a setting to disable location collection.
+- Decide whether the visible overlay shows coordinates, an approximate place,
+  or a privacy-safe location label.
+
+Acceptance checks:
+
+- [x] Recording still works if location permission is denied.
+- [x] Location data is attached to the correct evidence record.
+- [x] Accuracy and timestamp are stored with the coordinates.
+- [x] No location data is collected before permission.
+- [x] UI clearly shows when geotagging is active.
+
+### 5. Mobile flash control
+
+Browser limitation: torch support depends on the phone, selected rear camera,
+browser, and HTTPS context. The control must gracefully show “unavailable.”
+
+Planned work:
+
+- Inspect the active video track’s `torch` capability.
+- Apply the torch constraint when supported.
+- Provide clear on, off, and unavailable states.
+- Turn the torch off when the stream closes or the camera changes.
+- Never treat lack of torch support as a recording failure.
+
+Acceptance checks:
+
+- [x] Flash control enables only when the active camera exposes torch support.
+- [ ] Tapping toggles the physical torch on supported Android devices.
+- [ ] Unsupported iPhone/browser combinations fail gracefully.
+- [ ] Torch is released when leaving the camera screen.
+
+### 6. Mobile QA and release
+
+- [ ] Test Android Chrome over HTTPS.
+- [ ] Test iPhone Safari over HTTPS.
+- [ ] Test camera and microphone permission denial.
+- [ ] Test geolocation permission allowed and denied.
+- [ ] Test torch-supported and torch-unsupported devices.
+- [ ] Test Flipkart-style multi-code labels.
+- [ ] Test start scan, label removal, same-AWB stop scan, and automatic save.
+- [ ] Verify no Version 1.00 regression.
+- [x] Obtain explicit approval before committing.
+- [x] Obtain explicit approval before pushing.
+- [ ] Obtain explicit approval before deploying.
+
+## Change log template
+
+Copy this block for every Version 1.2 edit:
+
+```text
+Date:
+Version:
+Area:
+Requested change:
+Files changed:
+What changed:
+Reason:
+Tests performed:
+Result:
+Known limitations:
+Commit status: Uncommitted / Approved / Committed
+Deployment status: Not deployed / Preview / Production
+```
+
+## Version 1.2 edit log
+
+### 19 September 2026 — High-visibility camera UI and device metadata
+
+- **Version:** 1.2 local working copy
+- **Area:** Camera capture, evidence metadata, mobile controls
+- **Requested change:** Create an original camera screen informed by the supplied
+  feature reference, without copying its exact layout, and retain geotagging,
+  date/time, and flash control.
+- **Files changed:** `templates/base.html`, `templates/_evidence_row.html`,
+  `static/css/app.css`, `static/js/app.js`, `app.py`, `tests/test_scanner.py`, and
+  this journey document.
+- **What changed:** Added an original PackTrace Proof Capture composition with a
+  floating telemetry bar, segmented scan gate, evidence timestamp card,
+  asymmetric control dock, live local date/time, camera FPS/resolution display,
+  browser geolocation states, stored coordinates/accuracy/time, and
+  capability-aware torch control. Electric chartreuse replaces orange as the
+  persistent high-visibility signal; red is reserved for active recording.
+- **Privacy behavior:** Location is requested only after the user opens the camera;
+  denial or unavailability does not block scanning or recording.
+- **Data behavior:** Latitude, longitude, accuracy, and location timestamp are
+  stored in both recording-session and saved-evidence records when available.
+- **Tests performed:** Nine Python tests passed, Python compilation passed,
+  JavaScript syntax passed, migration paths passed, and desktop browser visual QA
+  passed with a live camera feed. Android/iPhone hardware QA remains outstanding.
+- **Known limitation:** The visible date/location HUD is not yet burned permanently
+  into the recorded video pixels; it is displayed live and stored as metadata.
+- **Commit status:** Explicitly approved for commit and push on 19 September 2026
+- **Deployment status:** Not deployed
+
+### 19 September 2026 — Source-control checkpoint approved
+
+- **Version:** 1.2 development snapshot
+- **Area:** GitHub source control
+- **Requested change:** Commit the completed local work, update this journey,
+  and push the development branch to GitHub.
+- **Scope:** High-visibility Proof Capture UI, geotag metadata, live date/time,
+  capability-aware mobile torch control, database migrations, evidence display,
+  tests, and project documentation.
+- **Validation before commit:** Nine Python tests passed, Python compilation
+  passed, JavaScript syntax passed, and `git diff --check` passed.
+- **Commit status:** Approved; included in this checkpoint
+- **Push status:** Approved for `origin/version-1.2`
+- **Deployment status:** Not deployed; no approval to merge or deploy
+
+## Working rules
+
+1. Version 1.00 remains preserved in the ZIP backup and on `main`.
+2. Version 1.2 work happens on `version-1.2`.
+3. Every material edit is recorded in this document.
+4. Local edits and tests do not imply permission to commit.
+5. Commit, push, merge, and production deployment require explicit approval.

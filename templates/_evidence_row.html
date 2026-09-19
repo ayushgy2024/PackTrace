@@ -1,6 +1,6 @@
 <article class="evidence-row">
   <span class="file-icon {{ 'rto' if item.evidence_type == 'RTO' }}">▶</span>
-  <div class="evidence-name"><strong>{{ item.order_code }}{% if item.duplicate_count > 1 %}<em class="duplicate-badge">Duplicate ×{{ item.duplicate_count }}</em>{% endif %}</strong><small><b class="{{ 'rto' if item.evidence_type == 'RTO' }}">{{ item.evidence_type }}</b> · {{ item.recorded_at_utc|friendly_time }}{% if item.stop_reason %} · {{ item.stop_reason|replace('_', ' ')|title }}{% endif %}</small></div>
+  <div class="evidence-name"><strong>{{ item.order_code }}{% if item.duplicate_count > 1 %}<em class="duplicate-badge">Duplicate ×{{ item.duplicate_count }}</em>{% endif %}</strong><small><b class="{{ 'rto' if item.evidence_type == 'RTO' }}">{{ item.evidence_type }}</b> · {{ item.recorded_at_utc|friendly_time }}{% if item.latitude is not none and item.longitude is not none %} · ⌖ Geotagged{% endif %}{% if item.stop_reason %} · {{ item.stop_reason|replace('_', ' ')|title }}{% endif %}</small></div>
   <span class="duration">{{ item.duration_seconds|duration }}<small>{{ item.size_bytes|filesize }}</small></span>
   <span class="status {{ 'verified' if item.state == 'VERIFIED' else 'pending' }}">{{ '✓ Verified' if item.state == 'VERIFIED' else '⇧ Pending' }}</span>
   <a class="play-button" href="{{ url_for('play_evidence', evidence_id=item.id) }}" target="_blank" aria-label="Play {{ item.order_code }}">▶</a>

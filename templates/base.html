@@ -43,11 +43,36 @@
         <div class="privacy-note">◆ <span>The recording is saved privately by the Python server and never placed in Gallery or Photos.</span></div>
       </div>
       <div class="camera-step" id="camera-step" hidden>
-        <div class="camera-meta"><strong id="camera-order-code">SCAN AWB / TRACKING LABEL</strong><span id="record-state">SCANNING</span></div>
-        <div class="camera-frame"><video id="camera-preview" muted playsinline></video><div class="camera-message" id="camera-message">Starting camera…</div><i class="corner a"></i><i class="corner b"></i><i class="corner c"></i><i class="corner d"></i></div>
-        <div class="scan-feedback" id="scan-feedback"><span></span> Point the camera at the QR code or barcode</div>
-        <div class="record-controls"><button class="text-button" id="back-to-code">Enter manually</button><button class="record-button" id="record-button" aria-label="Start recording" disabled><span></span></button><small>720p<br>Private capture</small></div>
-        <button class="text-button scan-image-button" id="scan-image-button" type="button">Scan a photo of the label</button>
+        <div class="camera-stage">
+          <video id="camera-preview" muted playsinline></video>
+          <div class="camera-hud-top">
+            <span class="capture-mode"><i></i> PROOF CAPTURE</span>
+            <span class="camera-spec"><b id="camera-fps">-- FPS</b><b id="camera-resolution">Camera</b></span>
+          </div>
+          <div class="camera-stamp" aria-live="polite">
+            <span class="stamp-label">LOCAL EVIDENCE TIME</span>
+            <strong id="camera-clock">--:--:--</strong>
+            <span id="camera-date">---- -- --</span>
+            <small id="camera-location">Location waiting</small>
+          </div>
+          <div class="focus-gate" aria-hidden="true">
+            <i class="gate-corner gate-a"></i><i class="gate-corner gate-b"></i>
+            <span class="gate-line"></span><b>ALIGN SHIPPING LABEL</b>
+            <i class="gate-corner gate-c"></i><i class="gate-corner gate-d"></i>
+          </div>
+          <div class="camera-message" id="camera-message">Starting camera…</div>
+          <div class="camera-stage-footer"><span id="camera-order-code">SCAN AWB / TRACKING LABEL</span><strong id="record-state">SCANNING</strong></div>
+        </div>
+        <div class="camera-control-panel">
+          <div class="capture-summary"><span><b>PackTrace</b><small>Secure packing evidence</small></span><strong id="camera-elapsed">00:00</strong></div>
+          <div class="scan-feedback" id="scan-feedback"><span></span> Waiting for an AWB scan to auto-record</div>
+          <div class="camera-tool-row">
+            <button class="round-tool" id="torch-button" type="button" disabled aria-pressed="false"><b>&#9889;</b><small>Flash unavailable</small></button>
+            <button class="record-button signal-record" id="record-button" aria-label="Start recording" disabled><span><i></i></span></button>
+            <button class="round-tool" id="back-to-code" type="button"><b>AWB</b><small>Enter manually</small></button>
+          </div>
+          <div class="camera-secondary-row"><span class="geotag-state" id="geotag-state">&#8982; Location pending</span><button class="text-button scan-image-button" id="scan-image-button" type="button">Use label photo</button></div>
+        </div>
         <input id="scan-image-input" type="file" accept="image/*" capture="environment" hidden>
       </div>
       <div class="capture-step review-step" id="review-step" hidden>

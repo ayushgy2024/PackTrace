@@ -79,6 +79,10 @@ def init_db() -> None:
                 verified_at_utc TEXT,
                 stop_reason TEXT NOT NULL DEFAULT '',
                 source_type TEXT NOT NULL DEFAULT 'web',
+                latitude REAL,
+                longitude REAL,
+                location_accuracy_m REAL,
+                location_recorded_at_utc TEXT,
                 created_at_utc TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_evidence_order_code
@@ -93,6 +97,10 @@ def init_db() -> None:
                 stopped_at_utc TEXT,
                 stop_reason TEXT NOT NULL DEFAULT '',
                 state TEXT NOT NULL DEFAULT 'RECORDING',
+                latitude REAL,
+                longitude REAL,
+                location_accuracy_m REAL,
+                location_recorded_at_utc TEXT,
                 evidence_id TEXT REFERENCES evidence(id)
             );
             CREATE INDEX IF NOT EXISTS idx_recording_sessions_order_code
@@ -104,6 +112,23 @@ def init_db() -> None:
             db.execute("ALTER TABLE evidence ADD COLUMN stop_reason TEXT NOT NULL DEFAULT ''")
         if "source_type" not in columns:
             db.execute("ALTER TABLE evidence ADD COLUMN source_type TEXT NOT NULL DEFAULT 'web'")
+        for name, definition in (
+            ("latitude", "REAL"),
+            ("longitude", "REAL"),
+            ("location_accuracy_m", "REAL"),
+            ("location_recorded_at_utc", "TEXT"),
+        ):
+            if name not in columns:
+                db.execute(f"ALTER TABLE evidence ADD COLUMN {name} {definition}")
+        session_columns = {row[1] for row in db.execute("PRAGMA table_info(recording_sessions)")}
+        for name, definition in (
+            ("latitude", "REAL"),
+            ("longitude", "REAL"),
+            ("location_accuracy_m", "REAL"),
+            ("location_recorded_at_utc", "TEXT"),
+        ):
+            if name not in session_columns:
+                db.execute(f"ALTER TABLE recording_sessions ADD COLUMN {name} {definition}")
 
 
 def normalize_code(value: str) -> str:
@@ -113,6 +138,33 @@ def normalize_code(value: str) -> str:
     if not 3 <= len(normalized) <= 64:
         raise ValueError("Order code must contain 3–64 supported characters.")
     return normalized
+
+
+def parse_location(values) -> tuple[float | None, float | None, float | None, str | None]:
+    latitude_raw = values.get("latitude")
+    longitude_raw = values.get("longitude")
+    if latitude_raw in (None, "") and longitude_raw in (None, ""):
+        return None, None, None, None
+    if latitude_raw in (None, "") or longitude_raw in (None, ""):
+        raise ValueError("Latitude and longitude must be supplied together.")
+    try:
+        latitude = float(latitude_raw)
+        longitude = float(longitude_raw)
+        accuracy_raw = values.get("location_accuracy_m")
+        accuracy = float(accuracy_raw) if accuracy_raw not in (None, "") else None
+    except (TypeError, ValueError) as error:
+        raise ValueError("Invalid geolocation values.") from error
+    if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
+        raise ValueError("Geolocation coordinates are outside valid bounds.")
+    if accuracy is not None and (accuracy < 0 or accuracy > 100_000):
+        raise ValueError("Geolocation accuracy is outside valid bounds.")
+    recorded_at = str(values.get("location_recorded_at_utc") or "").strip()
+    if recorded_at:
+        try:
+            datetime.fromisoformat(recorded_at.replace("Z", "+00:00"))
+        except ValueError as error:
+            raise ValueError("Invalid geolocation timestamp.") from error
+    return latitude, longitude, accuracy, recorded_at or None
 
 
 def evidence_rows(query: str = "", limit: int | None = None) -> list[sqlite3.Row]:
@@ -218,6 +270,10 @@ def create_evidence():
         duration_seconds = max(0, int(request.form.get("duration_seconds", "0")))
     except ValueError:
         return jsonify(error="Invalid recording duration."), 400
+    try:
+        latitude, longitude, location_accuracy_m, location_recorded_at_utc = parse_location(request.form)
+    except ValueError as error:
+        return jsonify(error=str(error)), 400
     stop_reason = request.form.get("stop_reason", "MANUAL").strip().upper()[:40] or "MANUAL"
     recording_session_id = request.form.get("recording_session_id", "").strip()
     if recording_session_id:
@@ -250,8 +306,10 @@ def create_evidence():
                 """INSERT INTO evidence
                    (id, order_code, evidence_type, recorded_at_utc, duration_seconds,
                     size_bytes, sha256, mime_type, local_filename, state, stop_reason,
-                    source_type, created_at_utc)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING_UPLOAD', ?, 'web', ?)""",
+                    source_type, latitude, longitude, location_accuracy_m,
+                    location_recorded_at_utc, created_at_utc)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING_UPLOAD', ?, 'web',
+                           ?, ?, ?, ?, ?)""",
                 (
                     evidence_id,
                     order_code,
@@ -263,6 +321,10 @@ def create_evidence():
                     video.mimetype or "application/octet-stream",
                     filename,
                     stop_reason,
+                    latitude,
+                    longitude,
+                    location_accuracy_m,
+                    location_recorded_at_utc,
                     timestamp,
                 ),
             )
@@ -270,13 +332,18 @@ def create_evidence():
                 db.execute(
                     """INSERT INTO recording_sessions
                        (id, order_code, evidence_type, started_at_utc, stopped_at_utc,
-                        stop_reason, state, evidence_id)
-                       VALUES (?, ?, ?, ?, ?, ?, 'SAVED', ?)
+                        stop_reason, state, evidence_id, latitude, longitude,
+                        location_accuracy_m, location_recorded_at_utc)
+                       VALUES (?, ?, ?, ?, ?, ?, 'SAVED', ?, ?, ?, ?, ?)
                        ON CONFLICT(id) DO UPDATE SET
                            stopped_at_utc = excluded.stopped_at_utc,
                            stop_reason = excluded.stop_reason,
                            state = 'SAVED',
-                           evidence_id = excluded.evidence_id""",
+                           evidence_id = excluded.evidence_id,
+                           latitude = COALESCE(excluded.latitude, recording_sessions.latitude),
+                           longitude = COALESCE(excluded.longitude, recording_sessions.longitude),
+                           location_accuracy_m = COALESCE(excluded.location_accuracy_m, recording_sessions.location_accuracy_m),
+                           location_recorded_at_utc = COALESCE(excluded.location_recorded_at_utc, recording_sessions.location_recorded_at_utc)""",
                     (
                         recording_session_id,
                         order_code,
@@ -285,6 +352,10 @@ def create_evidence():
                         timestamp,
                         stop_reason,
                         evidence_id,
+                        latitude,
+                        longitude,
+                        location_accuracy_m,
+                        location_recorded_at_utc,
                     ),
                 )
     except Exception:
@@ -314,12 +385,26 @@ def start_recording_session():
     evidence_type = str(data.get("evidence_type", "")).upper()
     if evidence_type not in {"OUTBOUND", "RTO"}:
         return jsonify(error="Evidence type must be OUTBOUND or RTO."), 400
+    try:
+        latitude, longitude, location_accuracy_m, location_recorded_at_utc = parse_location(data)
+    except ValueError as error:
+        return jsonify(error=str(error)), 400
     with get_db() as db:
         db.execute(
             """INSERT OR IGNORE INTO recording_sessions
-               (id, order_code, evidence_type, started_at_utc, state)
-               VALUES (?, ?, ?, ?, 'RECORDING')""",
-            (session_id, order_code, evidence_type, utc_now()),
+               (id, order_code, evidence_type, started_at_utc, state, latitude,
+                longitude, location_accuracy_m, location_recorded_at_utc)
+               VALUES (?, ?, ?, ?, 'RECORDING', ?, ?, ?, ?)""",
+            (
+                session_id,
+                order_code,
+                evidence_type,
+                utc_now(),
+                latitude,
+                longitude,
+                location_accuracy_m,
+                location_recorded_at_utc,
+            ),
         )
     return jsonify(id=session_id, state="RECORDING"), 201
 

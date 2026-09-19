@@ -13,6 +13,8 @@
   const cameraMessage = $('#camera-message')
   const recordState = $('#record-state')
   const scanFeedback = $('#scan-feedback')
+  const torchButton = $('#torch-button')
+  const cameraElapsed = $('#camera-elapsed')
   let evidenceType = 'OUTBOUND'
   let stream = null
   let recorder = null
@@ -35,6 +37,10 @@
   let stopReason = 'MANUAL'
   let keyboardScanBuffer = ''
   let keyboardScanLastAt = 0
+  let clockTimer = null
+  let currentLocation = null
+  let torchTrack = null
+  let torchEnabled = false
 
   const cleanCode = (value) => value.trim().toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9\-_/.]/g, '')
   const normalizedCode = () => cleanCode(orderInput.value)
@@ -102,6 +108,96 @@
     window.setTimeout(() => { toast.hidden = true }, 3400)
   }
 
+  function updateCameraClock() {
+    const now = new Date()
+    $('#camera-clock').textContent = now.toLocaleTimeString([], { hour12: false })
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    $('#camera-date').textContent = `${year}-${month}-${day}`
+  }
+
+  function startCameraClock() {
+    window.clearInterval(clockTimer)
+    updateCameraClock()
+    clockTimer = window.setInterval(updateCameraClock, 1000)
+  }
+
+  function setGeotagStatus(message, active = false) {
+    $('#camera-location').textContent = message
+    const state = $('#geotag-state')
+    state.textContent = `⌖ ${message}`
+    state.classList.toggle('active', active)
+  }
+
+  function requestGeotag() {
+    currentLocation = null
+    if (!navigator.geolocation) {
+      setGeotagStatus('Location unavailable')
+      return
+    }
+    setGeotagStatus('Locating…')
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        currentLocation = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          recordedAt: new Date(position.timestamp).toISOString(),
+        }
+        setGeotagStatus(
+          `${currentLocation.latitude.toFixed(5)}, ${currentLocation.longitude.toFixed(5)} ±${Math.round(currentLocation.accuracy)}m`,
+          true,
+        )
+      },
+      (error) => {
+        const message = error.code === error.PERMISSION_DENIED ? 'Location permission denied' : 'Location unavailable'
+        setGeotagStatus(message)
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 },
+    )
+  }
+
+  function resetTorch() {
+    torchTrack = null
+    torchEnabled = false
+    torchButton.disabled = true
+    torchButton.classList.remove('active')
+    torchButton.setAttribute('aria-pressed', 'false')
+    torchButton.querySelector('small').textContent = 'Flash unavailable'
+  }
+
+  function configureCameraControls() {
+    const [track] = stream?.getVideoTracks?.() || []
+    const settings = track?.getSettings?.() || {}
+    $('#camera-resolution').textContent = settings.height ? `${settings.height}p` : 'Camera'
+    $('#camera-fps').textContent = settings.frameRate ? `${Math.round(settings.frameRate)} FPS` : '-- FPS'
+    let capabilities = {}
+    try { capabilities = track?.getCapabilities?.() || {} } catch { capabilities = {} }
+    if (track && capabilities.torch === true) {
+      torchTrack = track
+      torchButton.disabled = false
+      torchButton.querySelector('small').textContent = 'Flash off'
+    } else {
+      resetTorch()
+    }
+  }
+
+  async function toggleTorch() {
+    if (!torchTrack) return
+    const next = !torchEnabled
+    try {
+      await torchTrack.applyConstraints({ advanced: [{ torch: next }] })
+      torchEnabled = next
+      torchButton.classList.toggle('active', next)
+      torchButton.setAttribute('aria-pressed', String(next))
+      torchButton.querySelector('small').textContent = next ? 'Flash on' : 'Flash off'
+    } catch {
+      resetTorch()
+      showToast('Flash control is not supported by this camera or browser.', true)
+    }
+  }
+
   function stopScanner() {
     window.clearTimeout(scanTimer)
     scanTimer = null
@@ -118,12 +214,21 @@
     preview.srcObject = null
     window.clearInterval(recordTimer)
     recordTimer = null
+    window.clearInterval(clockTimer)
+    clockTimer = null
+    resetTorch()
   }
 
   function showStep(step) {
     codeStep.hidden = step !== 'code'
     cameraStep.hidden = step !== 'camera'
     reviewStep.hidden = step !== 'review'
+    modal.querySelector('.capture-modal').classList.toggle('camera-active', step === 'camera')
+    if (step === 'camera') startCameraClock()
+    else {
+      window.clearInterval(clockTimer)
+      clockTimer = null
+    }
   }
 
   function showManualEntry(message = '') {
@@ -139,6 +244,8 @@
     $('#capture-type').classList.toggle('rto', type === 'RTO')
     $('#capture-title').textContent = type === 'RTO' ? 'Record an RTO' : 'Pack an order'
     orderInput.value = ''
+    currentLocation = null
+    setGeotagStatus('Location pending')
     openCameraButton.disabled = true
     modal.hidden = false
     void openCamera(false)
@@ -347,6 +454,8 @@
       }
       preview.srcObject = stream
       await preview.play()
+      configureCameraControls()
+      requestGeotag()
       cameraMessage.hidden = true
       if (hasManualCode) {
         recordButton.disabled = false
@@ -367,6 +476,7 @@
     stopScanner()
     chunks = []
     elapsed = 0
+    cameraElapsed.textContent = '00:00'
     const options = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus') ? { mimeType: 'video/webm;codecs=vp9,opus' } : undefined
     recorder = new MediaRecorder(stream, options)
     recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data) }
@@ -390,7 +500,15 @@
     void fetch('/api/recording-sessions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: recordingSessionId, order_code: normalizedCode(), evidence_type: evidenceType }),
+      body: JSON.stringify({
+        id: recordingSessionId,
+        order_code: normalizedCode(),
+        evidence_type: evidenceType,
+        latitude: currentLocation?.latitude ?? null,
+        longitude: currentLocation?.longitude ?? null,
+        location_accuracy_m: currentLocation?.accuracy ?? null,
+        location_recorded_at_utc: currentLocation?.recordedAt ?? null,
+      }),
     }).catch(() => {})
     recordingStartedAt = performance.now()
     recordingStopArmed = false
@@ -401,7 +519,11 @@
     recordState.classList.add('live')
     recordState.textContent = '● REC 00:00'
     scanFeedback.innerHTML = `<span></span> AWB ${normalizedCode()} linked — move the label away, then scan it again to stop`
-    recordTimer = window.setInterval(() => { elapsed += 1; recordState.textContent = `● REC ${formatTime(elapsed)}` }, 1000)
+    recordTimer = window.setInterval(() => {
+      elapsed += 1
+      cameraElapsed.textContent = formatTime(elapsed)
+      recordState.textContent = `● REC ${formatTime(elapsed)}`
+    }, 1000)
     scanTimer = window.setTimeout(scanFrame, 300)
   }
 
@@ -424,6 +546,10 @@
     form.append('duration_seconds', String(elapsed))
     form.append('recording_session_id', recordingSessionId)
     form.append('stop_reason', stopReason)
+    form.append('latitude', currentLocation?.latitude ?? '')
+    form.append('longitude', currentLocation?.longitude ?? '')
+    form.append('location_accuracy_m', currentLocation?.accuracy ?? '')
+    form.append('location_recorded_at_utc', currentLocation?.recordedAt ?? '')
     form.append('video', recordedBlob, `evidence.${recordedBlob.type.includes('webm') ? 'webm' : 'mp4'}`)
     try {
       const response = await fetch('/api/evidence', { method: 'POST', body: form })
@@ -450,6 +576,7 @@
   })
   openCameraButton.addEventListener('click', () => void openCamera(true))
   recordButton.addEventListener('click', () => recorder?.state === 'recording' ? stopRecording() : startRecording())
+  torchButton.addEventListener('click', () => void toggleTorch())
   $('#close-capture').addEventListener('click', closeModal)
   $('#back-to-code').addEventListener('click', () => showManualEntry())
   $('#scan-image-button').addEventListener('click', () => $('#scan-image-input').click())

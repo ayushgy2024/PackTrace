@@ -73,17 +73,19 @@ class ScannerApiTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
-    def post_evidence(self, order_code: str, session_id: str = "") -> dict:
+    def post_evidence(self, order_code: str, session_id: str = "", **metadata) -> dict:
+        data = {
+            "order_code": order_code,
+            "evidence_type": "OUTBOUND",
+            "duration_seconds": "8",
+            "recording_session_id": session_id,
+            "stop_reason": "SAME_AWB_RESCAN",
+            "video": (io.BytesIO(b"webm-test-recording"), "evidence.webm"),
+        }
+        data.update(metadata)
         response = self.client.post(
             "/api/evidence",
-            data={
-                "order_code": order_code,
-                "evidence_type": "OUTBOUND",
-                "duration_seconds": "8",
-                "recording_session_id": session_id,
-                "stop_reason": "SAME_AWB_RESCAN",
-                "video": (io.BytesIO(b"webm-test-recording"), "evidence.webm"),
-            },
+            data=data,
             content_type="multipart/form-data",
         )
         self.assertEqual(response.status_code, 201)
@@ -110,6 +112,37 @@ class ScannerApiTests(unittest.TestCase):
         self.assertEqual(evidence["order_code"], "AWB123456789")
         self.assertEqual(evidence["stop_reason"], "SAME_AWB_RESCAN")
         self.assertEqual(len(evidence["sha256"]), 64)
+
+    def test_geotag_is_stored_with_evidence(self):
+        saved = self.post_evidence(
+            "GEO123456",
+            latitude="28.6139",
+            longitude="77.2090",
+            location_accuracy_m="12.5",
+            location_recorded_at_utc="2026-09-19T16:45:00.000Z",
+        )
+        with app_module.get_db() as db:
+            evidence = db.execute(
+                "SELECT latitude, longitude, location_accuracy_m, location_recorded_at_utc FROM evidence WHERE id = ?",
+                (saved["id"],),
+            ).fetchone()
+        self.assertAlmostEqual(evidence["latitude"], 28.6139)
+        self.assertAlmostEqual(evidence["longitude"], 77.2090)
+        self.assertEqual(evidence["location_accuracy_m"], 12.5)
+        self.assertEqual(evidence["location_recorded_at_utc"], "2026-09-19T16:45:00.000Z")
+
+    def test_invalid_geotag_is_rejected(self):
+        response = self.client.post(
+            "/api/recording-sessions",
+            json={
+                "id": str(uuid.uuid4()),
+                "order_code": "GEO123456",
+                "evidence_type": "OUTBOUND",
+                "latitude": 123,
+                "longitude": 77.2,
+            },
+        )
+        self.assertEqual(response.status_code, 400)
 
     def test_duplicate_awb_is_reported(self):
         first = self.post_evidence("DUPLICATE123")
