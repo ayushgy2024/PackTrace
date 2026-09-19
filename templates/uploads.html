@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}Uploads · PackTrace{% endblock %}
+{% block heading %}Upload queue{% endblock %}
+{% block subheading %}Nothing is deleted before remote verification.{% endblock %}
+{% block content %}
+<section class="section-card queue-card"><header class="queue-summary"><span class="metric-icon amber">⇧</span><div><h2>{{ pending|length }} {{ 'file' if pending|length == 1 else 'files' }} awaiting upload</h2><p>Google Drive is not configured. These files remain private and local.</p></div></header>
+  {% for item in pending %}<article class="queue-row"><span class="file-icon">▶</span><div><strong>{{ item.order_code }}</strong><small>{{ item.evidence_type }} · {{ item.size_bytes|filesize }}</small><span class="progress"><i></i></span></div><span class="status pending">Safely retained</span><a href="{{ url_for('play_evidence', evidence_id=item.id) }}" target="_blank">Review</a></article>{% else %}<div class="empty-state"><span>✓</span><h3>Upload queue is clear</h3><p>There are no local files awaiting upload.</p></div>{% endfor %}
+</section>
+{% endblock %}

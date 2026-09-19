@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Home · PackTrace{% endblock %}
+{% block heading %}Good morning, Ayush{% endblock %}
+{% block subheading %}Your evidence workspace is ready.{% endblock %}
+{% block content %}
+<section class="notice-card"><span class="notice-icon">☁</span><div><strong>Connect Google Drive to protect your evidence</strong><p>Recordings remain safely on this server until a verified upload completes.</p></div><a href="{{ url_for('settings') }}">Connect Drive →</a></section>
+<section class="action-grid">
+  <button class="action-card primary-action" data-record-type="OUTBOUND"><span class="action-icon">□</span><span><small>OUTBOUND EVIDENCE</small><strong>Pack an order</strong><p>Enter a label code and record the parcel before dispatch.</p></span><i>→</i></button>
+  <button class="action-card" data-record-type="RTO"><span class="action-icon amber">↻</span><span><small>RETURN EVIDENCE</small><strong>Record an RTO</strong><p>Link a returned parcel to its original evidence.</p></span><i>→</i></button>
+</section>
+<section class="metrics-grid">
+  <article><span class="metric-icon green">✓</span><div><p>Verified evidence</p><strong>{{ totals.verified or 0 }}</strong><small>files protected</small></div></article>
+  <article><span class="metric-icon amber">⇧</span><div><p>Awaiting upload</p><strong>{{ totals.pending or 0 }}</strong><small>retained locally</small></div></article>
+  <article><span class="metric-icon blue">◫</span><div><p>Local storage</p><strong>{{ totals.local_bytes|filesize }}</strong><small>pending evidence</small></div></article>
+</section>
+<section class="section-card"><header class="section-heading"><div><h2>Recent evidence</h2><p>Your latest packing and return recordings</p></div><a href="{{ url_for('evidence_library') }}">View all →</a></header>
+  <div class="evidence-list">{% for item in recent %}{% include '_evidence_row.html' %}{% else %}<div class="empty-state"><span>▤</span><h3>No evidence yet</h3><p>Record your first parcel to get started.</p></div>{% endfor %}</div>
+</section>
+<section class="safety-strip"><span>◆</span><div><strong>Your evidence, your Drive</strong><p>PackTrace never deletes a local recording before a verified remote copy exists.</p></div><a href="{{ url_for('settings') }}">Privacy & safety</a></section>
+{% endblock %}

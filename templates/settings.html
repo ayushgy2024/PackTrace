@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}Settings · PackTrace{% endblock %}
+{% block heading %}Settings{% endblock %}
+{% block subheading %}Manage storage, capture, and Drive connection.{% endblock %}
+{% block content %}
+<div class="settings-grid">
+  <section class="section-card settings-card wide"><header><span>☁</span><div><h2>Google Drive</h2><p>The permanent home for your evidence</p></div></header><div class="connection-panel"><span class="drive-logo">△</span><div><strong>Drive isn’t connected</strong><p>Production OAuth requires a Google client ID and an authorized domain.</p></div><button class="primary-button" data-demo-drive>Configure Drive</button></div><p class="settings-note">Only the limited <code>drive.file</code> permission will be requested. This build never pretends a local file is remotely verified.</p></section>
+  <section class="section-card settings-card"><header><span>◉</span><div><h2>Recording</h2><p>Browser capture preferences</p></div></header><div class="setting-row"><div><strong>Video quality</strong><small>Reliable browser default</small></div><select><option>720p</option><option>1080p</option></select></div><div class="setting-row"><div><strong>Record audio</strong><small>Include parcel handling audio</small></div><label class="switch"><input type="checkbox" checked><i></i></label></div></section>
+  <section class="section-card settings-card"><header><span>◫</span><div><h2>Local storage</h2><p>Private Python instance directory</p></div></header><div class="storage-bar"><i></i></div><div class="storage-label"><span>{{ totals.local_bytes|filesize }} retained</span><span>{{ totals.pending or 0 }} pending</span></div><button class="secondary-button full" data-safe-cleanup>Review safe cleanup</button></section>
+  <section class="section-card settings-card wide"><header><span>◇</span><div><h2>Open-source foundation</h2><p>English web implementation</p></div></header><p class="settings-note">PackTrace is an independent, unofficial web application whose scan-to-record workflow is based on ideas from the AGPL-3.0-licensed <a href="https://github.com/PackingProof/PackingProof-Desktop" target="_blank" rel="noreferrer"><strong>PackingProof Desktop project</strong></a>. PackTrace uses its own name, interface, and icon and is not endorsed by the upstream project.</p></section>
+</div>
+{% endblock %}
