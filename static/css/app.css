@@ -60,3 +60,26 @@ main{width:calc(100% - 250px);margin-left:250px}.topbar{height:105px;display:fle
 .camera-secondary-row{padding-top:8px;border-top:1px solid #24292b}.camera-secondary-row .scan-image-button{color:var(--signal-soft);font-size:9px}.geotag-state{color:#8c9394;font-size:9px}.geotag-state.active{color:var(--signal-soft)}
 @media(max-width:650px){.camera-active.capture-modal{border:0}.camera-stage{height:64%;min-height:0;border-radius:0}.camera-control-panel{height:36%;min-height:245px}.focus-gate{inset:24% 9% 23%}.camera-stamp{bottom:46px}.camera-stamp strong{font-size:27px}.camera-hud-top{font-size:inherit}}
 @media(prefers-reduced-motion:reduce){.gate-line{animation:none}}
+
+/* Google sign-in and authenticated account controls */
+.auth-page{min-height:100vh;color:#f4f6f5;background:radial-gradient(circle at 18% 12%,#263116 0,transparent 30%),linear-gradient(145deg,#111416,#070809 70%)}
+.auth-shell{width:100%;min-height:100vh;margin:0;display:grid;place-items:center;padding:24px}
+.auth-card{width:min(440px,100%);padding:42px;border:1px solid #343a3c;border-radius:24px;background:linear-gradient(145deg,#171b1d,#0c0e0f);box-shadow:0 28px 80px #0009}
+.auth-brand{display:flex;align-items:center;gap:10px;color:#fff;font:800 20px 'Manrope'}
+.auth-brand span{width:38px;height:38px;display:grid;place-items:center;border-radius:11px;color:#090b0c;background:#d8ff3e;box-shadow:0 0 22px #d8ff3e30}
+.auth-kicker{margin:32px 0 9px;color:#d8ff3e;font-size:9px;font-weight:800;letter-spacing:1.7px}
+.auth-card h1{margin:0;color:#fff;font:800 34px 'Manrope';letter-spacing:-1px}
+.auth-intro{margin:10px 0 27px;color:#9da4a1;font-size:13px;line-height:1.6}
+.google-button{min-height:52px;display:flex;align-items:center;justify-content:center;gap:12px;border:1px solid #454b4d;border-radius:12px;color:#101214;background:#fff;font-weight:700;transition:.2s}
+.google-button:not(.disabled):hover{transform:translateY(-1px);box-shadow:0 8px 24px #0006}
+.google-button span{width:26px;height:26px;display:grid;place-items:center;border:1px solid #dadce0;border-radius:50%;color:#4285f4;background:#fff;font:bold 15px Arial}
+.google-button.disabled{color:#767c79;background:#222627;cursor:not-allowed}
+.auth-error,.auth-setup{margin:0 0 16px;padding:12px 14px;border:1px solid #714044;border-radius:10px;color:#ffc8cc;background:#2c1518;font-size:11px;line-height:1.5}
+.auth-setup{margin:13px 0 0;border-color:#59642e;color:#e7f5a7;background:#20260f}
+.auth-setup strong,.auth-setup small{display:block}.auth-setup small{margin-top:3px;color:#b8c28f}
+.auth-privacy{margin-top:24px;padding-top:20px;border-top:1px solid #2b3032;color:#717977;font-size:10px;line-height:1.6}
+.account-row{display:grid;grid-template-columns:36px minmax(0,1fr) 30px;align-items:center;gap:9px;padding:17px 5px 0;border-top:1px solid #ffffff1a}
+.account-row img,.account-avatar{width:36px;height:36px;display:grid;place-items:center;border-radius:50%;color:#111;background:#d8ff3e;font-size:12px;font-weight:800;object-fit:cover}
+.account-row>span:not(.account-avatar){min-width:0;display:flex;flex-direction:column}.account-row strong,.account-row small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.account-row strong{font-size:11px}.account-row small{color:#91a69d;font-size:9px}
+.account-row form{margin:0}.account-row button{width:30px;height:30px;border:1px solid #ffffff1f;border-radius:8px;color:#d8ff3e;background:#ffffff0a;font-size:16px}
+@media(max-width:520px){.auth-card{padding:30px 24px}.auth-card h1{font-size:30px}}

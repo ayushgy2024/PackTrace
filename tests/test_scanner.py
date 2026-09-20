@@ -162,5 +162,44 @@ class ScannerApiTests(unittest.TestCase):
         self.assertIn(b"Open-source foundation", settings.data)
         self.assertIn(b"independent, unofficial web application", settings.data)
 
+    def test_google_login_protects_pages_and_apis(self):
+        app_module.app.config["TESTING"] = False
+        app_module.app.config["AUTH_REQUIRED"] = True
+        try:
+            page = self.client.get("/")
+            self.assertEqual(page.status_code, 302)
+            self.assertTrue(page.headers["Location"].endswith("/login"))
+            api = self.client.post("/api/scan")
+            self.assertEqual(api.status_code, 401)
+            self.assertEqual(api.get_json()["error"], "Google authentication is required.")
+            health = self.client.get("/health")
+            self.assertEqual(health.status_code, 200)
+        finally:
+            app_module.app.config["TESTING"] = True
+
+    def test_authenticated_google_user_can_open_workspace(self):
+        app_module.app.config["TESTING"] = False
+        app_module.app.config["AUTH_REQUIRED"] = True
+        try:
+            with self.client.session_transaction() as browser_session:
+                browser_session["user"] = {
+                    "sub": "google-test-user",
+                    "email": "operator@example.com",
+                    "name": "Test Operator",
+                    "picture": "",
+                }
+            response = self.client.get("/")
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(b"Hello, Test", response.data)
+            self.assertIn(b"operator@example.com", response.data)
+        finally:
+            app_module.app.config["TESTING"] = True
+
+    def test_unconfigured_google_login_has_safe_setup_message(self):
+        response = self.client.get("/login")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Google sign-in unavailable", response.data)
+        self.assertIn(b"Administrator setup required", response.data)
+
 if __name__ == "__main__":
     unittest.main()

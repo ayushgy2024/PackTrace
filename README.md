@@ -31,6 +31,40 @@ Flask 3.1.3 is pinned in `requirements.txt`. If it is not already available:
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
+## Google sign-in setup
+
+PackTrace requires Google sign-in by default. Authentication protects access to
+the workspace, but authenticated users currently share the same evidence
+library; per-user data separation is not implemented yet.
+
+1. In Google Cloud Console, configure the OAuth consent screen and create an
+   **OAuth 2.0 Client ID** with application type **Web application**.
+2. Add these exact authorized redirect URIs for the environments you use:
+   - `http://localhost:5000/auth/google/callback`
+   - `http://127.0.0.1:5000/auth/google/callback`
+   - `https://pack-trace-gamma.vercel.app/auth/google/callback`
+3. Set the values in your PowerShell session before starting locally:
+
+```powershell
+$env:GOOGLE_CLIENT_ID="your-client-id.apps.googleusercontent.com"
+$env:GOOGLE_CLIENT_SECRET="your-google-client-secret"
+$env:PACKTRACE_SECRET_KEY="use-a-long-random-secret-here"
+# Recommended for internal use; separate multiple addresses with commas.
+$env:PACKTRACE_ALLOWED_EMAILS="your.name@gmail.com"
+.\.venv\Scripts\python.exe app.py
+```
+
+For Vercel, add `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and
+`PACKTRACE_SECRET_KEY` in Project Settings → Environment Variables, then
+redeploy. `PACKTRACE_ALLOWED_EMAILS` is optional: when blank, any Google account
+with a verified email can sign in. Never put real secrets in `.env.example`,
+GitHub, or source code.
+
+For localhost-only UI development without Google, set
+`PACKTRACE_DEV_AUTH_BYPASS=1`. This bypass is restricted to `localhost` and
+`127.0.0.1`; it does not bypass a Vercel deployment. To intentionally disable
+authentication everywhere, set `PACKTRACE_AUTH_REQUIRED=0`.
+
 ## Storage
 
 - Metadata: `instance/packtrace.sqlite3`

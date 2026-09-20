@@ -5,10 +5,12 @@ import io
 import os
 import sqlite3
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from flask import Flask, abort, jsonify, render_template, request, send_file, url_for
+from authlib.integrations.base_client.errors import OAuthError
+from authlib.integrations.flask_client import OAuth
+from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, session, url_for
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps, UnidentifiedImageError
 from werkzeug.middleware.proxy_fix import ProxyFix
 import zxingcpp
@@ -25,14 +27,153 @@ VIDEO_DIR = INSTANCE_DIR / "private_evidence"
 DATABASE = INSTANCE_DIR / "packtrace.sqlite3"
 
 app = Flask(__name__, instance_path=str(INSTANCE_DIR), instance_relative_config=True)
-app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024 * 1024
+app.config.update(
+    MAX_CONTENT_LENGTH=1024 * 1024 * 1024,
+    SECRET_KEY=os.environ.get("PACKTRACE_SECRET_KEY", "local-development-only"),
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("PACKTRACE_COOKIE_SECURE") == "1" or IS_VERCEL,
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
+    AUTH_REQUIRED=os.environ.get("PACKTRACE_AUTH_REQUIRED", "1") != "0",
+)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+oauth = OAuth(app)
+google = None
+if os.environ.get("GOOGLE_CLIENT_ID") and os.environ.get("GOOGLE_CLIENT_SECRET"):
+    google = oauth.register(
+        name="google",
+        client_id=os.environ["GOOGLE_CLIENT_ID"],
+        client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+        client_kwargs={"scope": "openid profile email"},
+    )
 Image.MAX_IMAGE_PIXELS = 20_000_000
+
+
+def allowed_google_emails() -> set[str]:
+    return {
+        email.strip().lower()
+        for email in os.environ.get("PACKTRACE_ALLOWED_EMAILS", "").split(",")
+        if email.strip()
+    }
+
+
+def current_user() -> dict[str, str] | None:
+    user = session.get("user")
+    return user if isinstance(user, dict) else None
+
+
+def local_auth_bypass() -> bool:
+    hostname = request.host.split(":", 1)[0].lower()
+    return os.environ.get("PACKTRACE_DEV_AUTH_BYPASS") == "1" and hostname in {
+        "127.0.0.1",
+        "localhost",
+    }
+
+
+def google_auth_configured() -> bool:
+    secret_is_safe = bool(os.environ.get("PACKTRACE_SECRET_KEY")) or not IS_VERCEL
+    return google is not None and secret_is_safe
+
+
+@app.before_request
+def require_google_login():
+    if not app.config["AUTH_REQUIRED"] or app.config.get("TESTING") or local_auth_bypass():
+        return None
+    if request.endpoint in {"login", "google_login", "google_callback", "health", "static"}:
+        return None
+    if IS_VERCEL and not os.environ.get("PACKTRACE_SECRET_KEY"):
+        if request.path.startswith("/api/"):
+            return jsonify(error="Google authentication is not configured."), 503
+        return redirect(url_for("login"))
+    if current_user() is not None:
+        return None
+    if request.path.startswith("/api/"):
+        return jsonify(error="Google authentication is required."), 401
+    if request.method == "GET":
+        target = request.full_path.rstrip("?")
+        if target.startswith("/") and not target.startswith("//"):
+            session["post_login_next"] = target
+    return redirect(url_for("login"))
+
+
+@app.context_processor
+def authentication_context() -> dict[str, object]:
+    user = current_user()
+    if user is None and local_auth_bypass():
+        user = {"name": "Local developer", "email": "local@packtrace.test", "picture": ""}
+    return {
+        "current_user": user,
+        "google_auth_configured": google_auth_configured(),
+        "auth_required": app.config["AUTH_REQUIRED"],
+    }
 
 
 @app.get("/health")
 def health():
     return jsonify(status="ok")
+
+
+@app.get("/login")
+def login():
+    if current_user() is not None:
+        return redirect(url_for("dashboard"))
+    return render_template("login.html", auth_error="")
+
+
+@app.get("/auth/google")
+def google_login():
+    if not google_auth_configured():
+        return render_template(
+            "login.html",
+            auth_error="Google sign-in is not configured yet. Add the required environment variables.",
+        ), 503
+    redirect_uri = url_for("google_callback", _external=True)
+    return google.authorize_redirect(redirect_uri)
+
+
+@app.get("/auth/google/callback")
+def google_callback():
+    if not google_auth_configured():
+        return redirect(url_for("login"))
+    try:
+        token = google.authorize_access_token()
+        profile = token.get("userinfo") or google.userinfo(token=token)
+    except OAuthError as error:
+        app.logger.warning("Google authentication failed: %s", error.error)
+        return render_template("login.html", auth_error="Google sign-in was cancelled or failed."), 400
+
+    email = str(profile.get("email", "")).strip().lower()
+    if not email or profile.get("email_verified") is not True:
+        return render_template(
+            "login.html", auth_error="Google did not provide a verified email address."
+        ), 403
+    allowed = allowed_google_emails()
+    if allowed and email not in allowed:
+        app.logger.warning("Google sign-in rejected for an email outside the allowlist")
+        return render_template(
+            "login.html", auth_error="This Google account is not allowed to access PackTrace."
+        ), 403
+
+    next_url = session.get("post_login_next", url_for("dashboard"))
+    session.clear()
+    session.permanent = True
+    session["user"] = {
+        "sub": str(profile.get("sub", "")),
+        "email": email,
+        "name": str(profile.get("name", email)),
+        "picture": str(profile.get("picture", "")),
+    }
+    safe_next = str(next_url)
+    if not safe_next.startswith("/") or safe_next.startswith("//"):
+        safe_next = url_for("dashboard")
+    return redirect(safe_next)
+
+
+@app.post("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
 
 
 class ClosingSqliteConnection(sqlite3.Connection):

@@ -10,7 +10,7 @@ is made. A task is complete only when its acceptance checks pass.
 **Production Git branch:** `main`  
 **Internal version label:** Version 1.2  
 **Branch policy:** `main` and `version-1.2` stay aligned to the same release commit  
-**Current development phase:** Version 1.2 deployment and mobile QA
+**Current development phase:** Version 1.2 authentication and mobile QA
 
 ```text
 PackTrace journey
@@ -407,6 +407,25 @@ Deployment status: Not deployed / Preview / Production
   4.5 MB and temporary `/tmp` storage is not durable.
 - **Commit status:** Explicitly approved and included in the local commit
 - **Deployment status:** Not deployed
+
+### 21 September 2026 — Google account sign-in
+
+- **Version:** 1.2 local working copy
+- **Area:** Workspace access and user identity
+- **Requested change:** Allow users to sign in with their Google ID.
+- **Resolution:** Added Google OpenID Connect login, a protected-by-default
+  workspace, verified-email checks, 12-hour signed sessions, sign-out controls,
+  and an optional email allowlist for internal use. The health endpoint remains
+  public for deployment monitoring, while unauthenticated API requests return
+  HTTP 401.
+- **Configuration safety:** OAuth credentials and the Flask signing secret are
+  supplied only through environment variables. A production deployment with
+  missing credentials fails closed on the setup screen instead of exposing the
+  evidence workspace.
+- **Scope note:** Authentication identifies and authorizes entry to the shared
+  PackTrace workspace. It does not yet partition evidence by user account.
+- **Commit status:** Explicitly approved for commit and push
+- **Deployment status:** Pending production deployment verification
 
 ## Working rules
 

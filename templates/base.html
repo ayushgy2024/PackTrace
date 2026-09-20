@@ -20,6 +20,13 @@
       </nav>
       <div class="sidebar-bottom">
         <div class="drive-state"><div><span class="cloud">☁</span><span><strong>Google Drive</strong><small>Not connected</small></span></div><a href="{{ url_for('settings') }}">Connect</a></div>
+        {% if current_user %}
+        <div class="account-row">
+          {% if current_user.picture %}<img src="{{ current_user.picture }}" alt="" referrerpolicy="no-referrer">{% else %}<span class="account-avatar">{{ current_user.name[:1]|upper }}</span>{% endif %}
+          <span><strong>{{ current_user.name }}</strong><small>{{ current_user.email }}</small></span>
+          <form method="post" action="{{ url_for('logout') }}"><button type="submit" title="Sign out" aria-label="Sign out">↪</button></form>
+        </div>
+        {% endif %}
       </div>
     </aside>
     <button class="nav-scrim" id="nav-scrim" aria-label="Close navigation"></button>
