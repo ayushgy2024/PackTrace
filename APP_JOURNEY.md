@@ -424,8 +424,11 @@ Deployment status: Not deployed / Preview / Production
   evidence workspace.
 - **Scope note:** Authentication identifies and authorizes entry to the shared
   PackTrace workspace. It does not yet partition evidence by user account.
-- **Commit status:** Explicitly approved for commit and push
-- **Deployment status:** Pending production deployment verification
+- **Commit status:** Explicitly approved and included in commit `880935d`
+- **Deployment status:** Verified live on Vercel. The production homepage
+  redirects to `/login`, the Google button is enabled, and the authorization
+  request reaches `accounts.google.com` with the exact production callback URI
+  and a generated OAuth state value.
 
 ## Working rules
 
