@@ -132,15 +132,20 @@
 
   function announceRecordingStatus(message) {
     if (!('speechSynthesis' in window) || typeof window.SpeechSynthesisUtterance !== 'function') return
-    window.speechSynthesis.cancel()
-    const announcement = new window.SpeechSynthesisUtterance(message)
-    const voice = preferredSpeechVoice || selectFemaleSpeechVoice()
-    if (voice) announcement.voice = voice
-    announcement.lang = voice?.lang || 'en-IN'
-    announcement.rate = 0.95
-    announcement.pitch = voice && /female|veena|neerja|heera|isha|samantha|victoria|karen|moira|tessa|zira|aria|jenny|susan|hazel|ava|serena/i.test(voice.name) ? 1 : 1.15
-    announcement.volume = 1
-    window.speechSynthesis.speak(announcement)
+    try {
+      window.speechSynthesis.cancel()
+      const announcement = new window.SpeechSynthesisUtterance(message)
+      const voice = preferredSpeechVoice || selectFemaleSpeechVoice()
+      if (voice) announcement.voice = voice
+      const voiceLanguage = String(voice?.lang || '')
+      announcement.lang = /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i.test(voiceLanguage) ? voiceLanguage : 'en-IN'
+      announcement.rate = 0.95
+      announcement.pitch = voice && /female|veena|neerja|heera|isha|samantha|victoria|karen|moira|tessa|zira|aria|jenny|susan|hazel|ava|serena/i.test(voice.name) ? 1 : 1.15
+      announcement.volume = 1
+      window.speechSynthesis.speak(announcement)
+    } catch {
+      // Voice feedback is optional and must never interrupt recording or saving.
+    }
   }
 
   function announceRecordingEnd() {
@@ -530,7 +535,7 @@
     recordButton.disabled = true
     try {
       if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') throw new Error('Camera recording is not supported in this browser.')
-      const video = { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+      const video = { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video, audio: true })
       } catch {
@@ -569,7 +574,9 @@
       'video/mp4',
     ]
     const efficientMimeType = efficientMimeTypes.find((type) => MediaRecorder.isTypeSupported?.(type))
-    const options = efficientMimeType ? { mimeType: efficientMimeType, videoBitsPerSecond: 2_500_000 } : undefined
+    const options = efficientMimeType
+      ? { mimeType: efficientMimeType, videoBitsPerSecond: 650_000, audioBitsPerSecond: 48_000 }
+      : undefined
     try {
       recorder = new MediaRecorder(stream, options)
     } catch {
@@ -657,11 +664,21 @@
     form.append('video', recordedBlob, `evidence.${recordedBlob.type.includes('webm') ? 'webm' : 'mp4'}`)
     try {
       const response = await fetch('/api/evidence', { method: 'POST', body: form })
-      const result = await response.json()
-      if (!response.ok) throw new Error(result.error || 'Evidence could not be saved.')
+      const responseText = await response.text()
+      let result = {}
+      try { result = responseText ? JSON.parse(responseText) : {} } catch { result = {} }
+      if (!response.ok) {
+        if (response.status === 413 || /FUNCTION_PAYLOAD_TOO_LARGE/i.test(responseText)) {
+          throw new Error('This recording is too large for the current Vercel upload limit. Record a shorter video or connect permanent video storage.')
+        }
+        throw new Error(result.error || `Evidence could not be saved (server response ${response.status}).`)
+      }
+      if (!result.redirect || typeof result.redirect !== 'string') {
+        throw new Error('Evidence was received, but the server did not return a valid library link.')
+      }
       const duplicateMessage = result.duplicate_count > 1 ? ` Duplicate AWB: ${result.duplicate_count} recordings found.` : ''
       showToast(`Evidence saved with tracking number ${normalizedCode()}.${duplicateMessage}`)
-      window.setTimeout(() => { window.location.href = result.redirect }, result.duplicate_count > 1 ? 1400 : 450)
+      window.setTimeout(() => { window.location.assign(result.redirect) }, result.duplicate_count > 1 ? 1400 : 450)
     } catch (error) {
       showToast(error.message || 'Evidence could not be saved.', true)
       button.textContent = '✓ Save evidence'

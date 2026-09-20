@@ -389,6 +389,25 @@ Deployment status: Not deployed / Preview / Production
 - **Commit status:** Explicitly approved and included in the local commit
 - **Deployment status:** Not deployed
 
+### 20 September 2026 — Save error hardening
+
+- **Version:** 1.2 local working copy
+- **Area:** Recorder stop transition and evidence upload
+- **Reported issue:** Saving displayed “The string did not match the expected
+  pattern” instead of completing or explaining the actual failure.
+- **Likely triggers found:** Some mobile voices expose a language identifier that
+  Safari rejects when the end announcement runs, and Vercel returns a non-JSON
+  error page when a recording upload exceeds its 4.5 MB function payload limit.
+- **Resolution:** Speech exceptions are now fully isolated from recording state,
+  voice language tags are validated, server responses are parsed defensively,
+  HTTP 413 receives an actionable message, and capture now targets efficient
+  720p video at a controlled video/audio bitrate.
+- **Remaining production limitation:** Arbitrarily long videos still require a
+  direct browser-to-object-storage upload; Vercel Function uploads cannot exceed
+  4.5 MB and temporary `/tmp` storage is not durable.
+- **Commit status:** Explicitly approved and included in the local commit
+- **Deployment status:** Not deployed
+
 ## Working rules
 
 1. Version 1.00 remains preserved in the local ZIP backup.
