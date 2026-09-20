@@ -369,6 +369,26 @@ Deployment status: Not deployed / Preview / Production
 - **Commit status:** Explicitly approved and included in the local commit
 - **Deployment status:** Not deployed
 
+### 20 September 2026 — Recording-time scanner performance
+
+- **Version:** 1.2 local working copy
+- **Area:** Same-AWB scanning while video encoding is active
+- **Reported issue:** Initial AWB scanning was responsive, but the same-AWB scan
+  used to stop an active recording lagged or failed to register promptly.
+- **Root cause:** During recording, the browser was encoding high-resolution VP9,
+  decoding frames locally, creating JPEG frames, and awaiting the Python fallback
+  response before scheduling the next local scan. Mobile devices therefore had a
+  much heavier and partly blocking scan loop than they had before recording.
+- **Resolution:** Server fallback scans now run asynchronously during recording,
+  local detection continues without waiting for the network, the active AWB is
+  protected against stale fallback responses, and recording prefers efficient
+  VP8/native browser encoding at a controlled bitrate.
+- **Reliability behavior:** Server fallback remains active more frequently while
+  recording, but only a response belonging to the current active AWB session may
+  affect that recording.
+- **Commit status:** Explicitly approved and included in the local commit
+- **Deployment status:** Not deployed
+
 ## Working rules
 
 1. Version 1.00 remains preserved in the local ZIP backup.

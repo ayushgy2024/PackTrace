@@ -399,7 +399,7 @@
     context.drawImage(preview, 0, 0, width, height)
   }
 
-  async function scanOnServer(requireRepeat = true) {
+  async function scanOnServer(requireRepeat = true, recordingCodeAtRequest = '') {
     if (serverScanInFlight) return false
     serverScanInFlight = true
     try {
@@ -413,6 +413,10 @@
         return false
       }
       const data = await response.json()
+      if (recordingCodeAtRequest && (
+        recorder?.state !== 'recording'
+        || !sameRecordingCode(recordingCodeAtRequest, normalizedCode())
+      )) return false
       const values = (data.codes || []).map((code) => code.text)
       if (requireRepeat ? registerDetections(values) : values.some((value) => acceptTrackingCode(value))) return true
       return false
@@ -444,8 +448,15 @@
     }
     scanAttempts += 1
     // Keep the Python fallback active even when the browser decoder is missing.
-    const serverInterval = detector ? 3 : 1
-    if (scanAttempts % serverInterval === 0 && await scanOnServer()) return
+    const isRecording = recorder?.state === 'recording'
+    const serverInterval = isRecording ? 2 : detector ? 3 : 1
+    if (scanAttempts % serverInterval === 0) {
+      if (isRecording) {
+        // Do not pause browser decoding while a slower server fallback is running.
+        // A matching response can still stop the active recording asynchronously.
+        void scanOnServer(true, normalizedCode())
+      } else if (await scanOnServer()) return
+    }
     if (recorder?.state === 'recording') {
       const now = performance.now()
       if (recordingCodeSeenInCycle) {
@@ -551,8 +562,20 @@
     chunks = []
     elapsed = 0
     cameraElapsed.textContent = '00:00'
-    const options = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus') ? { mimeType: 'video/webm;codecs=vp9,opus' } : undefined
-    recorder = new MediaRecorder(stream, options)
+    const efficientMimeTypes = [
+      'video/webm;codecs=vp8,opus',
+      'video/webm;codecs=vp8',
+      'video/webm',
+      'video/mp4',
+    ]
+    const efficientMimeType = efficientMimeTypes.find((type) => MediaRecorder.isTypeSupported?.(type))
+    const options = efficientMimeType ? { mimeType: efficientMimeType, videoBitsPerSecond: 2_500_000 } : undefined
+    try {
+      recorder = new MediaRecorder(stream, options)
+    } catch {
+      // Let the browser choose its most efficient native encoder if options differ.
+      recorder = new MediaRecorder(stream)
+    }
     recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data) }
     recorder.onstop = () => {
       announceRecordingEnd()
