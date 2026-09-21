@@ -3,7 +3,7 @@
 {% block heading %}Evidence library{% endblock %}
 {% block subheading %}Search and review every recorded order.{% endblock %}
 {% block content %}
-{% if saved %}<section class="notice-card {{ 'duplicate-notice' if duplicate_count > 1 }}"><span class="notice-icon">{{ '!' if duplicate_count > 1 else '✓' }}</span><div><strong>{{ saved }} was saved to the evidence database</strong><p>{% if duplicate_count > 1 %}Duplicate warning: this AWB now has {{ duplicate_count }} recordings.{% else %}The video, checksum, timestamps, duration, and stop reason are stored locally.{% endif %}</p></div></section>{% endif %}
+{% if saved %}<section class="notice-card {{ 'duplicate-notice' if duplicate_count > 1 }}"><span class="notice-icon">{{ '!' if duplicate_count > 1 else '✓' }}</span><div><strong>{{ saved }} was saved to the evidence database</strong><p>{% if duplicate_count > 1 %}Duplicate warning: this AWB now has {{ duplicate_count }} recordings.{% elif saved_to_drive %}The Google Drive file was verified and its evidence metadata is securely recorded.{% else %}The video, checksum, timestamps, duration, and stop reason are stored locally.{% endif %}</p></div></section>{% endif %}
 <section class="section-card library-card">
   <header class="library-tools"><form action="{{ url_for('evidence_library') }}"><span>⌕</span><input id="evidence-search" name="q" value="{{ query }}" placeholder="Search order or tracking code"><button>Search</button></form><button class="primary-button" data-record-type="OUTBOUND">＋ New evidence</button></header>
   <p class="result-count">{{ evidence|length }} evidence {{ 'file' if evidence|length == 1 else 'files' }}</p>

@@ -430,6 +430,36 @@ Deployment status: Not deployed / Preview / Production
   request reaches `accounts.google.com` with the exact production callback URI
   and a generated OAuth state value.
 
+### 21 September 2026 — Per-user Google Drive evidence storage
+
+- **Version:** 1.2 local working copy
+- **Area:** Durable storage, account isolation, and resumable uploads
+- **Requested change:** Let each signed-in user connect their own Google Drive
+  and save recordings directly to that Drive account.
+- **Resolution:** Added a separate Drive authorization flow using the restricted
+  `drive.file` scope, encrypted refresh-token storage, a per-user
+  `PackTrace Evidence` folder, and owner-scoped evidence, recording-session, and
+  upload metadata. Connected recordings now upload directly from the browser to
+  Google with 8 MB resumable chunks, bypassing Vercel's request-size ceiling.
+- **Reliability behavior:** A recording is retained in the browser's IndexedDB
+  queue before upload begins. Interrupted uploads appear on the Uploads page for
+  retry, and that user's queued device blobs are cleared at sign-out. Evidence
+  becomes `VERIFIED` only after PackTrace checks the Drive file ID, parent folder,
+  and byte size.
+- **Security behavior:** Drive refresh tokens are encrypted with a dedicated
+  environment secret; state-changing requests use CSRF protection; users cannot
+  list, play, or complete another user's evidence. The requested Drive scope
+  cannot browse files PackTrace did not create.
+- **Production requirement:** Vercel requires a persistent PostgreSQL
+  `DATABASE_URL`, `PACKTRACE_TOKEN_ENCRYPTION_KEY`, the Google Drive API enabled,
+  and the additional `/auth/google/drive/callback` OAuth redirect URI.
+- **Validation:** Python compilation and JavaScript syntax checks pass. The
+  automated suite now contains 16 passing tests, including user isolation,
+  encrypted token round-trips, CSRF enforcement, and Drive verification before
+  evidence insertion.
+- **Commit status:** Explicitly approved and included in this local checkpoint
+- **Deployment status:** Not deployed
+
 ## Working rules
 
 1. Version 1.00 remains preserved in the local ZIP backup.

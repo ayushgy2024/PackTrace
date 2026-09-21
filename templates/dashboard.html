@@ -3,7 +3,7 @@
 {% block heading %}{% if current_user %}Hello, {{ current_user.name.split()[0] }}{% else %}PackTrace workspace{% endif %}{% endblock %}
 {% block subheading %}Your evidence workspace is ready.{% endblock %}
 {% block content %}
-<section class="notice-card"><span class="notice-icon">☁</span><div><strong>Connect Google Drive to protect your evidence</strong><p>Recordings remain safely on this server until a verified upload completes.</p></div><a href="{{ url_for('settings') }}">Connect Drive →</a></section>
+<section class="notice-card"><span class="notice-icon">☁</span><div><strong>{% if drive_connected %}Google Drive is protecting your evidence{% else %}Connect Google Drive to protect your evidence{% endif %}</strong><p>{% if drive_connected %}New recordings upload directly to your private PackTrace Evidence folder.{% else %}Connect Drive before production recording to bypass Vercel’s upload limit.{% endif %}</p></div><a href="{{ url_for('settings') }}">{{ 'Manage Drive' if drive_connected else 'Connect Drive' }} →</a></section>
 <section class="action-grid">
   <button class="action-card primary-action" data-record-type="OUTBOUND"><span class="action-icon">□</span><span><small>OUTBOUND EVIDENCE</small><strong>Pack an order</strong><p>Enter a label code and record the parcel before dispatch.</p></span><i>→</i></button>
   <button class="action-card" data-record-type="RTO"><span class="action-icon amber">↻</span><span><small>RETURN EVIDENCE</small><strong>Record an RTO</strong><p>Link a returned parcel to its original evidence.</p></span><i>→</i></button>

@@ -1,8 +1,10 @@
 import io
+import os
 from pathlib import Path
 import tempfile
 import unittest
 import uuid
+from unittest.mock import Mock, patch
 
 from PIL import Image
 import zxingcpp
@@ -200,6 +202,109 @@ class ScannerApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Google sign-in unavailable", response.data)
         self.assertIn(b"Administrator setup required", response.data)
+
+    def set_google_user(self, subject: str, email: str):
+        with self.client.session_transaction() as browser_session:
+            browser_session["user"] = {
+                "sub": subject,
+                "email": email,
+                "name": subject,
+                "picture": "",
+            }
+        app_module.upsert_user({"sub": subject, "email": email, "name": subject, "picture": ""})
+
+    def test_evidence_library_is_partitioned_by_google_user(self):
+        self.set_google_user("user-a", "a@example.com")
+        self.post_evidence("PRIVATE-AWB-A")
+        self.set_google_user("user-b", "b@example.com")
+        self.post_evidence("PRIVATE-AWB-B")
+        page = self.client.get("/evidence")
+        self.assertIn(b"PRIVATE-AWB-B", page.data)
+        self.assertNotIn(b"PRIVATE-AWB-A", page.data)
+
+    def test_drive_upload_is_verified_before_evidence_insert(self):
+        self.set_google_user("drive-user", "drive@example.com")
+        with app_module.get_db() as db:
+            db.execute(
+                """INSERT INTO drive_connections
+                   (owner_sub, email, encrypted_refresh_token, folder_id, connected_at_utc, updated_at_utc)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                ("drive-user", "drive@example.com", "encrypted", "folder-123", app_module.utc_now(), app_module.utc_now()),
+            )
+
+        upload_id = str(uuid.uuid4())
+        initiate_response = Mock(ok=True, status_code=200, headers={"Location": "https://upload.example/session"})
+        with patch.object(app_module, "refresh_drive_access_token", return_value="access-token"), \
+             patch.object(app_module, "ensure_drive_folder", return_value="folder-123"), \
+             patch.object(app_module.http_requests, "post", return_value=initiate_response):
+            initiated = self.client.post(
+                "/api/drive/uploads/initiate",
+                json={
+                    "upload_id": upload_id,
+                    "order_code": "DRIVE-AWB-123",
+                    "evidence_type": "OUTBOUND",
+                    "duration_seconds": 12,
+                    "size_bytes": 1024,
+                    "sha256": "a" * 64,
+                    "mime_type": "video/webm",
+                    "stop_reason": "SAME_AWB_RESCAN",
+                },
+            )
+        self.assertEqual(initiated.status_code, 200)
+        self.assertEqual(initiated.get_json()["upload_url"], "https://upload.example/session")
+
+        drive_file_response = Mock(ok=True, status_code=200)
+        drive_file_response.json.return_value = {
+            "id": "drive-file-12345",
+            "size": "1024",
+            "parents": ["folder-123"],
+            "webViewLink": "https://drive.google.com/file/d/drive-file-12345/view",
+            "md5Checksum": "abc123",
+        }
+        with patch.object(app_module, "refresh_drive_access_token", return_value="access-token"), \
+             patch.object(app_module.http_requests, "get", return_value=drive_file_response):
+            completed = self.client.post(
+                "/api/drive/uploads/complete",
+                json={"upload_id": upload_id, "drive_file_id": "drive-file-12345"},
+            )
+        self.assertEqual(completed.status_code, 200)
+        with app_module.get_db() as db:
+            evidence = db.execute("SELECT * FROM evidence WHERE id = ?", (upload_id,)).fetchone()
+        self.assertEqual(evidence["owner_sub"], "drive-user")
+        self.assertEqual(evidence["state"], "VERIFIED")
+        self.assertEqual(evidence["drive_file_id"], "drive-file-12345")
+
+    def test_drive_refresh_tokens_are_encrypted_at_rest(self):
+        with patch.dict(os.environ, {"PACKTRACE_TOKEN_ENCRYPTION_KEY": "test-only-encryption-secret"}):
+            encrypted = app_module.encrypt_refresh_token("refresh-token-value")
+            self.assertNotIn("refresh-token-value", encrypted)
+            self.assertEqual(app_module.decrypt_refresh_token(encrypted), "refresh-token-value")
+
+    def test_state_changing_api_requires_csrf_outside_test_mode(self):
+        original_auth_required = app_module.app.config["AUTH_REQUIRED"]
+        app_module.app.config["TESTING"] = False
+        app_module.app.config["AUTH_REQUIRED"] = False
+        try:
+            self.client.get("/")
+            payload = {
+                "id": str(uuid.uuid4()),
+                "order_code": "CSRF123456",
+                "evidence_type": "OUTBOUND",
+            }
+            rejected = self.client.post("/api/recording-sessions", json=payload)
+            self.assertEqual(rejected.status_code, 400)
+            self.assertIn("security token", rejected.get_json()["error"])
+            with self.client.session_transaction() as browser_session:
+                token = browser_session["_csrf_token"]
+            accepted = self.client.post(
+                "/api/recording-sessions",
+                json=payload,
+                headers={"X-CSRF-Token": token},
+            )
+            self.assertEqual(accepted.status_code, 201)
+        finally:
+            app_module.app.config["AUTH_REQUIRED"] = original_auth_required
+            app_module.app.config["TESTING"] = True
 
 if __name__ == "__main__":
     unittest.main()

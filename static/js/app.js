@@ -44,6 +44,64 @@
   let currentLocation = null
   let torchTrack = null
   let torchEnabled = false
+  let activeDriveUpload = null
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || ''
+  const driveConnected = document.body.dataset.driveConnected === 'true'
+  const currentUserSub = document.body.dataset.userSub || ''
+  const uploadDatabaseName = 'packtrace-upload-queue-v1'
+
+  const csrfHeaders = (headers = {}) => ({ ...headers, 'X-CSRF-Token': csrfToken })
+
+  function openUploadDatabase() {
+    return new Promise((resolve, reject) => {
+      if (!('indexedDB' in window)) return reject(new Error('Offline upload storage is unavailable in this browser.'))
+      const request = indexedDB.open(uploadDatabaseName, 1)
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains('uploads')) request.result.createObjectStore('uploads', { keyPath: 'uploadId' })
+      }
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error || new Error('The upload queue could not be opened.'))
+    })
+  }
+
+  async function uploadQueueRequest(mode, action) {
+    const database = await openUploadDatabase()
+    try {
+      return await new Promise((resolve, reject) => {
+        const request = action(database.transaction('uploads', mode).objectStore('uploads'))
+        request.onsuccess = () => resolve(request.result)
+        request.onerror = () => reject(request.error || new Error('The upload queue could not be updated.'))
+      })
+    } finally {
+      database.close()
+    }
+  }
+
+  const queueUpload = (upload) => uploadQueueRequest('readwrite', (store) => store.put(upload))
+  const removeQueuedUpload = (uploadId) => uploadQueueRequest('readwrite', (store) => store.delete(uploadId))
+  const listQueuedUploads = () => uploadQueueRequest('readonly', (store) => store.getAll())
+
+  async function persistQueuedUpload(upload) {
+    try {
+      await queueUpload(upload)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  async function sha256Hex(blob) {
+    const digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())
+    return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('')
+  }
+
+  async function readJsonResponse(response) {
+    const responseText = await response.text()
+    let result = {}
+    try { result = responseText ? JSON.parse(responseText) : {} } catch { result = {} }
+    if (!response.ok) throw new Error(result.error || `Request failed (server response ${response.status}).`)
+    return result
+  }
 
   const cleanCode = (value) => value.trim().toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9\-_/.]/g, '')
   const normalizedCode = () => cleanCode(orderInput.value)
@@ -412,7 +470,7 @@
       if (!blob) return false
       const form = new FormData()
       form.append('frame', blob, 'camera-frame.jpg')
-      const response = await fetch('/api/scan', { method: 'POST', body: form })
+      const response = await fetch('/api/scan', { method: 'POST', headers: csrfHeaders(), body: form })
       if (!response.ok) {
         scannerFailures += 1
         return false
@@ -606,7 +664,7 @@
     recordingSessionId = newSessionId()
     void fetch('/api/recording-sessions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         id: recordingSessionId,
         order_code: normalizedCode(),
@@ -645,33 +703,187 @@
     recordState.classList.remove('live')
   }
 
+  function uploadChunk(uploadUrl, blob, start, onProgress) {
+    const chunkSize = 8 * 1024 * 1024
+    const endExclusive = Math.min(start + chunkSize, blob.size)
+    const chunk = blob.slice(start, endExclusive, blob.type)
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('PUT', uploadUrl)
+      xhr.setRequestHeader('Content-Type', blob.type || 'application/octet-stream')
+      xhr.setRequestHeader('Content-Range', `bytes ${start}-${endExclusive - 1}/${blob.size}`)
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) onProgress(Math.min(99, ((start + event.loaded) / blob.size) * 100))
+      }
+      xhr.onload = () => {
+        if (xhr.status === 308) {
+          const confirmed = xhr.getResponseHeader('Range')?.match(/bytes=0-(\d+)/i)
+          const nextOffset = confirmed ? Number(confirmed[1]) + 1 : endExclusive
+          return resolve({ nextOffset, driveFile: null, uploadUrl: xhr.getResponseHeader('Location') || uploadUrl })
+        }
+        if (xhr.status === 200 || xhr.status === 201) {
+          try {
+            return resolve({ nextOffset: blob.size, driveFile: JSON.parse(xhr.responseText || '{}'), uploadUrl })
+          } catch {
+            return reject(new Error('Google Drive finished the upload but returned an unreadable response.'))
+          }
+        }
+        reject(new Error(`Google Drive rejected the upload (response ${xhr.status || 'network error'}).`))
+      }
+      xhr.onerror = () => reject(new Error('The network was interrupted while uploading to Google Drive.'))
+      xhr.send(chunk)
+    })
+  }
+
+  function queryUploadStatus(uploadUrl, blobSize) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('PUT', uploadUrl)
+      xhr.setRequestHeader('Content-Range', `bytes */${blobSize}`)
+      xhr.onload = () => {
+        if (xhr.status === 308) {
+          const confirmed = xhr.getResponseHeader('Range')?.match(/bytes=0-(\d+)/i)
+          return resolve({ nextOffset: confirmed ? Number(confirmed[1]) + 1 : 0, driveFile: null })
+        }
+        if (xhr.status === 200 || xhr.status === 201) {
+          try { return resolve({ nextOffset: blobSize, driveFile: JSON.parse(xhr.responseText || '{}') }) } catch {
+            return reject(new Error('Google Drive returned an unreadable upload status.'))
+          }
+        }
+        if (xhr.status === 404 || xhr.status === 410) return resolve({ expired: true })
+        reject(new Error(`Google Drive could not resume the upload (response ${xhr.status || 'network error'}).`))
+      }
+      xhr.onerror = () => reject(new Error('The network was interrupted while checking Google Drive.'))
+      xhr.send()
+    })
+  }
+
+  async function processDriveUpload(upload, onProgress = () => {}) {
+    let working = upload
+    let driveFile = null
+    if (working.uploadUrl) {
+      onProgress(1, 'Checking the interrupted Google Drive upload…')
+      const status = await queryUploadStatus(working.uploadUrl, working.blob.size)
+      if (status.expired) {
+        working = { ...working, uploadUrl: '', uploadedBytes: 0 }
+        Object.assign(upload, working)
+        await persistQueuedUpload(working)
+      } else {
+        working = { ...working, uploadedBytes: status.nextOffset }
+        driveFile = status.driveFile
+        Object.assign(upload, working)
+        await persistQueuedUpload(working)
+      }
+    }
+    if (!working.uploadUrl) {
+      onProgress(1, 'Creating a secure Google Drive upload…')
+      const response = await fetch('/api/drive/uploads/initiate', {
+        method: 'POST',
+        headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          upload_id: working.uploadId,
+          order_code: working.orderCode,
+          evidence_type: working.evidenceType,
+          duration_seconds: working.durationSeconds,
+          size_bytes: working.blob.size,
+          sha256: working.sha256,
+          mime_type: working.blob.type || 'video/webm',
+          recording_session_id: working.recordingSessionId,
+          stop_reason: working.stopReason,
+          latitude: working.location?.latitude ?? null,
+          longitude: working.location?.longitude ?? null,
+          location_accuracy_m: working.location?.accuracy ?? null,
+          location_recorded_at_utc: working.location?.recordedAt ?? null,
+        }),
+      })
+      const initiated = await readJsonResponse(response)
+      working = { ...working, uploadUrl: initiated.upload_url, uploadedBytes: 0 }
+      Object.assign(upload, working)
+      await persistQueuedUpload(working)
+    }
+
+    let offset = Number(working.uploadedBytes || 0)
+    while (offset < working.blob.size) {
+      const result = await uploadChunk(working.uploadUrl, working.blob, offset, (percent) => {
+        onProgress(percent, `Uploading directly to Google Drive… ${Math.round(percent)}%`)
+      })
+      offset = result.nextOffset
+      driveFile = result.driveFile || driveFile
+      working = { ...working, uploadedBytes: offset, uploadUrl: result.uploadUrl || working.uploadUrl }
+      Object.assign(upload, working)
+      await persistQueuedUpload(working)
+    }
+    if (!driveFile?.id) throw new Error('Google Drive did not confirm the uploaded file.')
+
+    onProgress(100, 'Verifying the saved Drive file…')
+    const completion = await fetch('/api/drive/uploads/complete', {
+      method: 'POST',
+      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ upload_id: working.uploadId, drive_file_id: driveFile.id }),
+    })
+    const result = await readJsonResponse(completion)
+    try { await removeQueuedUpload(working.uploadId) } catch { /* Upload is already verified remotely. */ }
+    return result
+  }
+
+  function setUploadProgress(percent, message) {
+    const progress = $('#upload-progress')
+    progress.querySelector('i').style.width = `${Math.max(2, Math.min(100, percent))}%`
+    progress.querySelector('span').textContent = message
+  }
+
   async function saveEvidence() {
     if (!recordedBlob) return
     const button = $('#save-video')
     const progress = $('#upload-progress')
     button.disabled = true
     progress.hidden = false
-    const form = new FormData()
-    form.append('order_code', normalizedCode())
-    form.append('evidence_type', evidenceType)
-    form.append('duration_seconds', String(elapsed))
-    form.append('recording_session_id', recordingSessionId)
-    form.append('stop_reason', stopReason)
-    form.append('latitude', currentLocation?.latitude ?? '')
-    form.append('longitude', currentLocation?.longitude ?? '')
-    form.append('location_accuracy_m', currentLocation?.accuracy ?? '')
-    form.append('location_recorded_at_utc', currentLocation?.recordedAt ?? '')
-    form.append('video', recordedBlob, `evidence.${recordedBlob.type.includes('webm') ? 'webm' : 'mp4'}`)
     try {
-      const response = await fetch('/api/evidence', { method: 'POST', body: form })
-      const responseText = await response.text()
-      let result = {}
-      try { result = responseText ? JSON.parse(responseText) : {} } catch { result = {} }
-      if (!response.ok) {
-        if (response.status === 413 || /FUNCTION_PAYLOAD_TOO_LARGE/i.test(responseText)) {
-          throw new Error('This recording is too large for the current Vercel upload limit. Record a shorter video or connect permanent video storage.')
+      let result
+      if (driveConnected) {
+        setUploadProgress(1, 'Preparing recording for Google Drive…')
+        const upload = activeDriveUpload || {
+          uploadId: newSessionId(),
+          ownerSub: currentUserSub,
+          orderCode: normalizedCode(),
+          evidenceType,
+          durationSeconds: elapsed,
+          recordingSessionId,
+          stopReason,
+          location: currentLocation,
+          blob: recordedBlob,
+          sha256: await sha256Hex(recordedBlob),
+          uploadUrl: '',
+          uploadedBytes: 0,
+          createdAt: new Date().toISOString(),
         }
-        throw new Error(result.error || `Evidence could not be saved (server response ${response.status}).`)
+        activeDriveUpload = upload
+        if (!upload.uploadUrl && !upload.uploadedBytes && !await persistQueuedUpload(upload)) {
+          showToast('Offline retry storage is unavailable; keep this page open until Drive finishes.', true)
+        }
+        result = await processDriveUpload(upload, setUploadProgress)
+        activeDriveUpload = null
+      } else {
+        const form = new FormData()
+        form.append('order_code', normalizedCode())
+        form.append('evidence_type', evidenceType)
+        form.append('duration_seconds', String(elapsed))
+        form.append('recording_session_id', recordingSessionId)
+        form.append('stop_reason', stopReason)
+        form.append('latitude', currentLocation?.latitude ?? '')
+        form.append('longitude', currentLocation?.longitude ?? '')
+        form.append('location_accuracy_m', currentLocation?.accuracy ?? '')
+        form.append('location_recorded_at_utc', currentLocation?.recordedAt ?? '')
+        form.append('video', recordedBlob, `evidence.${recordedBlob.type.includes('webm') ? 'webm' : 'mp4'}`)
+        const response = await fetch('/api/evidence', { method: 'POST', headers: csrfHeaders(), body: form })
+        const responseText = await response.text()
+        try { result = responseText ? JSON.parse(responseText) : {} } catch { result = {} }
+        if (!response.ok) {
+          if (response.status === 413 || /FUNCTION_PAYLOAD_TOO_LARGE/i.test(responseText)) {
+            throw new Error('This recording is too large for the current Vercel upload limit. Connect Google Drive, then try again.')
+          }
+          throw new Error(result.error || `Evidence could not be saved (server response ${response.status}).`)
+        }
       }
       if (!result.redirect || typeof result.redirect !== 'string') {
         throw new Error('Evidence was received, but the server did not return a valid library link.')
@@ -683,7 +895,49 @@
       showToast(error.message || 'Evidence could not be saved.', true)
       button.textContent = '✓ Save evidence'
       button.disabled = false
-      progress.hidden = true
+      setUploadProgress(2, driveConnected ? 'Upload paused — use Uploads to retry safely.' : 'Saving failed — try again.')
+    }
+  }
+
+  async function renderDeviceUploadQueue() {
+    const container = $('#device-upload-list')
+    if (!container) return
+    let uploads = []
+    try { uploads = (await listQueuedUploads()).filter((upload) => upload.ownerSub === currentUserSub) } catch {
+      container.innerHTML = '<p class="settings-note">This browser could not open its offline upload queue.</p>'
+      return
+    }
+    if (!uploads.length) {
+      container.innerHTML = '<div class="empty-state compact"><span>✓</span><h3>Device retry queue is clear</h3><p>No interrupted browser uploads are waiting.</p></div>'
+      return
+    }
+    container.innerHTML = ''
+    for (const upload of uploads.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))) {
+      const row = document.createElement('article')
+      row.className = 'queue-row device-queue-row'
+      row.innerHTML = '<span class="file-icon">▶</span><div><strong></strong><small></small><span class="progress"><i></i></span></div><span class="status pending">Waiting</span><button class="secondary-button">Retry</button>'
+      row.querySelector('strong').textContent = upload.orderCode
+      row.querySelector('small').textContent = `${upload.evidenceType} · ${(upload.blob.size / 1024 / 1024).toFixed(1)} MB`
+      const status = row.querySelector('.status')
+      const bar = row.querySelector('.progress i')
+      const retry = row.querySelector('button')
+      retry.disabled = !driveConnected
+      retry.addEventListener('click', async () => {
+        retry.disabled = true
+        try {
+          const result = await processDriveUpload(upload, (percent, message) => {
+            bar.style.width = `${percent}%`
+            status.textContent = message
+          })
+          status.textContent = 'Verified'
+          window.setTimeout(() => window.location.assign(result.redirect), 350)
+        } catch (error) {
+          status.textContent = 'Retry needed'
+          retry.disabled = false
+          showToast(error.message || 'Upload could not be resumed.', true)
+        }
+      })
+      container.appendChild(row)
     }
   }
 
@@ -712,6 +966,17 @@
 
   const sidebar = $('#sidebar')
   const scrim = $('#nav-scrim')
+  const logoutForm = $('#logout-form')
+  logoutForm?.addEventListener('submit', async (event) => {
+    event.preventDefault()
+    try {
+      const uploads = await listQueuedUploads()
+      await Promise.all(uploads.filter((upload) => upload.ownerSub === currentUserSub).map((upload) => removeQueuedUpload(upload.uploadId)))
+    } catch {
+      // Signing out must still work when browser storage is unavailable.
+    }
+    logoutForm.submit()
+  })
   $('#menu-button').addEventListener('click', () => { sidebar.classList.add('open'); scrim.classList.add('show') })
   scrim.addEventListener('click', () => { sidebar.classList.remove('open'); scrim.classList.remove('show') })
   document.addEventListener('keydown', (event) => {
@@ -736,6 +1001,6 @@
     if (event.key === 'Escape' && !modal.hidden) closeModal()
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); window.location.href = '/evidence' }
   })
-  $$('[data-demo-drive]').forEach((button) => button.addEventListener('click', () => showToast('Persistent cloud storage is not configured yet')))
   $$('[data-safe-cleanup]').forEach((button) => button.addEventListener('click', () => showToast('No files are eligible: remote verification is not configured')))
+  void renderDeviceUploadQueue()
 })()

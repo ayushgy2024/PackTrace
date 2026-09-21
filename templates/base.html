@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#10281f">
   <meta name="description" content="Private outbound and RTO video evidence for ecommerce sellers.">
+  <meta name="csrf-token" content="{{ csrf_token }}">
   <title>{% block title %}PackTrace{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
 </head>
-<body>
+<body data-drive-connected="{{ 'true' if drive_connected else 'false' }}" data-user-sub="{{ current_user.sub if current_user else '' }}">
   <div class="app-shell">
     <aside class="sidebar" id="sidebar">
       <a class="brand" href="{{ url_for('dashboard') }}"><span class="brand-mark">✓</span><span>PackTrace</span></a>
@@ -19,12 +20,12 @@
         <a class="{{ 'active' if active_page == 'settings' }}" href="{{ url_for('settings') }}"><span class="nav-icon">⚙</span>Settings</a>
       </nav>
       <div class="sidebar-bottom">
-        <div class="drive-state"><div><span class="cloud">☁</span><span><strong>Google Drive</strong><small>Not connected</small></span></div><a href="{{ url_for('settings') }}">Connect</a></div>
+        <div class="drive-state"><div><span class="cloud">☁</span><span><strong>Google Drive</strong><small>{{ 'Connected' if drive_connected else 'Not connected' }}</small></span></div><a href="{{ url_for('settings') }}">{{ 'Manage' if drive_connected else 'Connect' }}</a></div>
         {% if current_user %}
         <div class="account-row">
           {% if current_user.picture %}<img src="{{ current_user.picture }}" alt="" referrerpolicy="no-referrer">{% else %}<span class="account-avatar">{{ current_user.name[:1]|upper }}</span>{% endif %}
           <span><strong>{{ current_user.name }}</strong><small>{{ current_user.email }}</small></span>
-          <form method="post" action="{{ url_for('logout') }}"><button type="submit" title="Sign out" aria-label="Sign out">↪</button></form>
+          <form id="logout-form" method="post" action="{{ url_for('logout') }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><button type="submit" title="Sign out" aria-label="Sign out">↪</button></form>
         </div>
         {% endif %}
       </div>
@@ -86,7 +87,7 @@
         <video id="review-video" controls></video><div class="review-meta"><div><span>Order code</span><strong id="review-code"></strong></div><div><span>Duration</span><strong id="review-duration"></strong></div><div><span>Size</span><strong id="review-size"></strong></div></div>
         <div class="review-actions"><button class="secondary-button" id="retake">↻ Retake</button><button class="primary-button" id="save-video">✓ Save evidence</button></div>
         <div class="upload-progress" id="upload-progress" hidden><i></i><span>Saving securely…</span></div>
-        <p class="safe-copy">The file will remain local and pending until a verified Drive upload exists.</p>
+        <p class="safe-copy">{% if drive_connected %}This recording uploads directly from this device to your Google Drive.{% else %}Connect Google Drive in Settings for recordings larger than Vercel’s request limit.{% endif %}</p>
       </div>
     </section>
   </div>

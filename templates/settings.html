@@ -4,7 +4,19 @@
 {% block subheading %}Manage storage, capture, and Drive connection.{% endblock %}
 {% block content %}
 <div class="settings-grid">
-  <section class="section-card settings-card wide"><header><span>☁</span><div><h2>Cloud storage</h2><p>A future permanent home for your evidence</p></div></header><div class="connection-panel"><span class="drive-logo">△</span><div><strong>Cloud storage isn’t connected</strong><p>The current build stores evidence on the Python server.</p></div><button class="primary-button" data-demo-drive>Not configured</button></div><p class="settings-note">This build never pretends a temporary or local file is remotely verified.</p></section>
+  <section class="section-card settings-card wide">
+    <header><span>☁</span><div><h2>Google Drive</h2><p>Your private destination for PackTrace recordings</p></div></header>
+    {% if drive_error %}<div class="settings-alert error">{{ drive_error }}</div>{% endif %}
+    {% if drive_saved %}<div class="settings-alert success">Google Drive connected successfully.</div>{% endif %}
+    {% if drive_connected %}
+      <div class="connection-panel connected"><span class="drive-logo">△</span><div><strong>Drive connected</strong><p>{{ drive_connection.email }} · PackTrace Evidence folder</p></div><form method="post" action="{{ url_for('disconnect_google_drive') }}"><input type="hidden" name="_csrf_token" value="{{ csrf_token }}"><button class="secondary-button" type="submit">Disconnect</button></form></div>
+      <p class="settings-note">New recordings upload directly from this browser to your Drive. PackTrace verifies the Drive file before adding it to Evidence.</p>
+    {% else %}
+      <div class="connection-panel"><span class="drive-logo">△</span><div><strong>Google Drive isn’t connected</strong><p>Connect the same Google account you use for PackTrace.</p></div><a class="primary-button" href="{{ url_for('connect_google_drive') }}">Connect Drive</a></div>
+      <p class="settings-note">PackTrace requests access only to files and folders it creates. It cannot browse unrelated Drive files.</p>
+    {% endif %}
+    {% if not persistent_database %}<div class="settings-alert warning">Persistent database is not configured. Add DATABASE_URL before using Drive in production.</div>{% endif %}
+  </section>
   <section class="section-card settings-card"><header><span>◉</span><div><h2>Recording</h2><p>Browser capture preferences</p></div></header><div class="setting-row"><div><strong>Video quality</strong><small>Reliable browser default</small></div><select><option>720p</option><option>1080p</option></select></div><div class="setting-row"><div><strong>Record audio</strong><small>Include parcel handling audio</small></div><label class="switch"><input type="checkbox" checked><i></i></label></div></section>
   <section class="section-card settings-card"><header><span>◫</span><div><h2>Local storage</h2><p>Private Python instance directory</p></div></header><div class="storage-bar"><i></i></div><div class="storage-label"><span>{{ totals.local_bytes|filesize }} retained</span><span>{{ totals.pending or 0 }} pending</span></div><button class="secondary-button full" data-safe-cleanup>Review safe cleanup</button></section>
   <section class="section-card settings-card wide"><header><span>◇</span><div><h2>Open-source foundation</h2><p>English web implementation</p></div></header><p class="settings-note">PackTrace is an independent, unofficial web application whose scan-to-record workflow is based on ideas from the AGPL-3.0-licensed <a href="https://github.com/PackingProof/PackingProof-Desktop" target="_blank" rel="noreferrer"><strong>PackingProof Desktop project</strong></a>. PackTrace uses its own name, interface, and icon and is not endorsed by the upstream project.</p></section>
