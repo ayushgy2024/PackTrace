@@ -753,7 +753,10 @@
         if (xhr.status === 404 || xhr.status === 410) return resolve({ expired: true })
         reject(new Error(`Google Drive could not resume the upload (response ${xhr.status || 'network error'}).`))
       }
-      xhr.onerror = () => reject(new Error('The network was interrupted while checking Google Drive.'))
+      // Older sessions created without this browser's Origin fail their CORS
+      // status check. Replace them transparently instead of trapping the video
+      // in a permanent retry loop.
+      xhr.onerror = () => resolve({ expired: true })
       xhr.send()
     })
   }

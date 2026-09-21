@@ -236,7 +236,7 @@ class ScannerApiTests(unittest.TestCase):
         initiate_response = Mock(ok=True, status_code=200, headers={"Location": "https://upload.example/session"})
         with patch.object(app_module, "refresh_drive_access_token", return_value="access-token"), \
              patch.object(app_module, "ensure_drive_folder", return_value="folder-123"), \
-             patch.object(app_module.http_requests, "post", return_value=initiate_response):
+             patch.object(app_module.http_requests, "post", return_value=initiate_response) as post_request:
             initiated = self.client.post(
                 "/api/drive/uploads/initiate",
                 json={
@@ -252,6 +252,7 @@ class ScannerApiTests(unittest.TestCase):
             )
         self.assertEqual(initiated.status_code, 200)
         self.assertEqual(initiated.get_json()["upload_url"], "https://upload.example/session")
+        self.assertEqual(post_request.call_args.kwargs["headers"]["Origin"], "http://localhost")
 
         drive_file_response = Mock(ok=True, status_code=200)
         drive_file_response.json.return_value = {
@@ -273,6 +274,40 @@ class ScannerApiTests(unittest.TestCase):
         self.assertEqual(evidence["owner_sub"], "drive-user")
         self.assertEqual(evidence["state"], "VERIFIED")
         self.assertEqual(evidence["drive_file_id"], "drive-file-12345")
+
+    def test_drive_callback_synchronizes_user_from_existing_session(self):
+        with self.client.session_transaction() as browser_session:
+            browser_session["user"] = {
+                "sub": "stale-session-user",
+                "email": "stale@example.com",
+                "name": "Stale Session",
+                "picture": "",
+            }
+        fake_drive = Mock()
+        fake_drive.authorize_access_token.return_value = {
+            "userinfo": {
+                "sub": "stale-session-user",
+                "email": "stale@example.com",
+            },
+            "refresh_token": "refresh-token",
+            "access_token": "access-token",
+        }
+        with patch.dict(os.environ, {"PACKTRACE_TOKEN_ENCRYPTION_KEY": "test-encryption-key"}), \
+             patch.object(app_module, "google_drive", fake_drive), \
+             patch.object(app_module, "ensure_drive_folder", return_value="folder-123"):
+            response = self.client.get("/auth/google/drive/callback")
+
+        self.assertEqual(response.status_code, 302)
+        with app_module.get_db() as db:
+            user = db.execute(
+                "SELECT google_sub FROM users WHERE google_sub = ?", ("stale-session-user",)
+            ).fetchone()
+            connection = db.execute(
+                "SELECT owner_sub FROM drive_connections WHERE owner_sub = ?",
+                ("stale-session-user",),
+            ).fetchone()
+        self.assertIsNotNone(user)
+        self.assertIsNotNone(connection)
 
     def test_drive_refresh_tokens_are_encrypted_at_rest(self):
         with patch.dict(os.environ, {"PACKTRACE_TOKEN_ENCRYPTION_KEY": "test-only-encryption-secret"}):

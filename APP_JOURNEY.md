@@ -460,6 +460,24 @@ Deployment status: Not deployed / Preview / Production
 - **Commit status:** Explicitly approved and included in this local checkpoint
 - **Deployment status:** Not deployed
 
+### 21 September 2026 — Drive connection and retry hardening
+
+- **Version:** 1.2 local working copy
+- **Area:** Google Drive authorization, browser uploads, and settings UI
+- **Observed issue:** A session created before the PostgreSQL rollout could not
+  save its Drive connection because its user row was absent from the durable
+  database. Browser retries also could not inspect resumable sessions created
+  without the PackTrace web origin.
+- **Resolution:** The Drive callback now synchronizes the signed-in user before
+  saving the foreign-keyed connection. New upload sessions carry the current
+  PackTrace origin, and retries replace legacy sessions whose cross-origin
+  status check fails. Button contents are vertically centred consistently.
+- **Validation:** All 17 automated tests pass, including regression coverage for
+  stale-session user synchronization and browser-origin upload initiation.
+  Python compilation and JavaScript syntax checks also pass.
+- **Commit status:** Explicitly approved and included in this checkpoint
+- **Deployment status:** Not deployed
+
 ## Working rules
 
 1. Version 1.00 remains preserved in the local ZIP backup.

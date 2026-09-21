@@ -773,6 +773,10 @@ def google_drive_callback():
             return redirect(
                 url_for("settings", drive_error="Connect the same Google account used to sign in.")
             )
+        # A browser session can survive a deployment that moves PackTrace from
+        # local SQLite to PostgreSQL. Synchronize it before inserting records
+        # whose owner_sub has a foreign key to the durable users table.
+        upsert_user(user)
         refresh_token = str(token.get("refresh_token", ""))
         if not refresh_token:
             return redirect(
@@ -871,6 +875,9 @@ def initiate_drive_upload():
             params={"uploadType": "resumable", "fields": "id,name,size,md5Checksum,webViewLink,parents"},
             headers={
                 **drive_headers(access_token),
+                # The returned session is used directly by this web origin.
+                # Supplying it here lets Google authorize the later browser PUTs.
+                "Origin": request.host_url.rstrip("/"),
                 "Content-Type": "application/json; charset=UTF-8",
                 "X-Upload-Content-Type": mime_type,
                 "X-Upload-Content-Length": str(size_bytes),
