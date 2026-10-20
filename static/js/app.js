@@ -652,7 +652,7 @@
       $('#review-size').textContent = `${(recordedBlob.size / 1024 / 1024).toFixed(1)} MB`
       showStep('review')
       if (autoSaveAfterStop) {
-        $('#save-video').textContent = 'Saving evidence…'
+        $('#save-video').textContent = 'Saving recording…'
         void saveEvidence()
       }
     }
@@ -885,18 +885,18 @@
           if (response.status === 413 || /FUNCTION_PAYLOAD_TOO_LARGE/i.test(responseText)) {
             throw new Error('This recording is too large for the current Vercel upload limit. Connect Google Drive, then try again.')
           }
-          throw new Error(result.error || `Evidence could not be saved (server response ${response.status}).`)
+          throw new Error(result.error || `Recording could not be saved (server response ${response.status}).`)
         }
       }
       if (!result.redirect || typeof result.redirect !== 'string') {
-        throw new Error('Evidence was received, but the server did not return a valid library link.')
+        throw new Error('Recording was received, but the server did not return a valid library link.')
       }
       const duplicateMessage = result.duplicate_count > 1 ? ` Duplicate AWB: ${result.duplicate_count} recordings found.` : ''
-      showToast(`Evidence saved with tracking number ${normalizedCode()}.${duplicateMessage}`)
+      showToast(`Recording saved with tracking number ${normalizedCode()}.${duplicateMessage}`)
       window.setTimeout(() => { window.location.assign(result.redirect) }, result.duplicate_count > 1 ? 1400 : 450)
     } catch (error) {
-      showToast(error.message || 'Evidence could not be saved.', true)
-      button.textContent = '✓ Save evidence'
+      showToast(error.message || 'Recording could not be saved.', true)
+      button.textContent = '✓ Save recording'
       button.disabled = false
       setUploadProgress(2, driveConnected ? 'Upload paused — use Uploads to retry safely.' : 'Saving failed — try again.')
     }

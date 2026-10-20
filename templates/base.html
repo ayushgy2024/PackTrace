@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#10281f">
-  <meta name="description" content="Private outbound and RTO video evidence for ecommerce sellers.">
+  <meta name="description" content="Private outbound and RTO parcel recordings for ecommerce sellers.">
   <meta name="csrf-token" content="{{ csrf_token }}">
   <title>{% block title %}PackTrace{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
@@ -15,7 +15,7 @@
       <a class="brand" href="{{ url_for('dashboard') }}"><span class="brand-mark">✓</span><span>PackTrace</span></a>
       <nav>
         <a class="{{ 'active' if active_page == 'home' }}" href="{{ url_for('dashboard') }}"><span class="nav-icon">⌂</span>Home</a>
-        <a class="{{ 'active' if active_page == 'evidence' }}" href="{{ url_for('evidence_library') }}"><span class="nav-icon">▤</span>Evidence</a>
+        <a class="{{ 'active' if active_page == 'evidence' }}" href="{{ url_for('evidence_library') }}"><span class="nav-icon">▤</span>Recordings</a>
         <a class="{{ 'active' if active_page == 'uploads' }}" href="{{ url_for('uploads') }}"><span class="nav-icon">⇧</span>Uploads{% if totals.pending %}<b>{{ totals.pending }}</b>{% endif %}</a>
         <a class="{{ 'active' if active_page == 'settings' }}" href="{{ url_for('settings') }}"><span class="nav-icon">⚙</span>Settings</a>
       </nav>
@@ -34,7 +34,7 @@
     <main>
       <header class="topbar">
         <button class="menu-button" id="menu-button" aria-label="Open navigation">☰</button>
-        <div><h1>{% block heading %}PackTrace{% endblock %}</h1><p>{% block subheading %}Private parcel evidence{% endblock %}</p></div>
+        <div><h1>{% block heading %}PackTrace{% endblock %}</h1><p>{% block subheading %}Private parcel recorder{% endblock %}</p></div>
         <a class="quick-search" href="{{ url_for('evidence_library') }}"><span>⌕</span><span>Search order</span><kbd>Ctrl K</kbd></a>
       </header>
       <div class="page-content">{% block content %}{% endblock %}</div>
@@ -58,7 +58,7 @@
             <span class="camera-spec"><b id="camera-fps">-- FPS</b><b id="camera-resolution">Camera</b></span>
           </div>
           <div class="camera-stamp" aria-live="polite">
-            <span class="stamp-label">LOCAL EVIDENCE TIME</span>
+            <span class="stamp-label">LOCAL RECORDING TIME</span>
             <strong id="camera-clock">--:--:--</strong>
             <span id="camera-date">---- -- --</span>
             <small id="camera-location">Location waiting</small>
@@ -72,7 +72,7 @@
           <div class="camera-stage-footer"><span id="camera-order-code">SCAN AWB / TRACKING LABEL</span><strong id="record-state">SCANNING</strong></div>
         </div>
         <div class="camera-control-panel">
-          <div class="capture-summary"><span><b>PackTrace</b><small>Secure packing evidence</small></span><strong id="camera-elapsed">00:00</strong></div>
+          <div class="capture-summary"><span><b>PackTrace</b><small>Secure parcel recorder</small></span><strong id="camera-elapsed">00:00</strong></div>
           <div class="scan-feedback" id="scan-feedback"><span></span> Waiting for an AWB scan to auto-record</div>
           <div class="camera-tool-row">
             <button class="round-tool" id="torch-button" type="button" disabled aria-pressed="false"><b>&#9889;</b><small>Flash unavailable</small></button>
@@ -85,7 +85,7 @@
       </div>
       <div class="capture-step review-step" id="review-step" hidden>
         <video id="review-video" controls></video><div class="review-meta"><div><span>Order code</span><strong id="review-code"></strong></div><div><span>Duration</span><strong id="review-duration"></strong></div><div><span>Size</span><strong id="review-size"></strong></div></div>
-        <div class="review-actions"><button class="secondary-button" id="retake">↻ Retake</button><button class="primary-button" id="save-video">✓ Save evidence</button></div>
+        <div class="review-actions"><button class="secondary-button" id="retake">↻ Retake</button><button class="primary-button" id="save-video">✓ Save recording</button></div>
         <div class="upload-progress" id="upload-progress" hidden><i></i><span>Saving securely…</span></div>
         <p class="safe-copy">{% if drive_connected %}This recording uploads directly from this device to your Google Drive.{% else %}Connect Google Drive in Settings for recordings larger than Vercel’s request limit.{% endif %}</p>
       </div>

@@ -1,6 +1,6 @@
 # PackTrace Python
 
-Flask and SQLite web application for recording outbound packing and RTO evidence.
+Flask and SQLite web application for recording outbound packing and RTO parcel videos.
 
 The recording workflow opens the camera first, reads an AWB/tracking number from
 QR codes or common shipping barcodes, confirms two matching detections, and then
@@ -13,7 +13,7 @@ damaged or unreadable labels.
 
 The first successful AWB scan starts recording automatically. Move the label
 out of view; once the scanner is armed, showing the same AWB again stops the
-recording, saves the video, and inserts its metadata into the SQLite evidence
+recording, saves the video, and inserts its metadata into the recording
 database. A different barcode cannot stop the active recording.
 
 ## Run
@@ -34,7 +34,7 @@ Flask 3.1.3 is pinned in `requirements.txt`. If it is not already available:
 ## Google sign-in and Drive setup
 
 PackTrace requires Google sign-in by default. Authentication protects access to
-the workspace, and each authenticated user has a separate evidence library and
+the workspace, and each authenticated user has a separate recording library and
 Google Drive connection.
 
 1. In Google Cloud Console, enable the **Google Drive API**, configure the OAuth consent screen, and create an
@@ -80,12 +80,12 @@ authentication everywhere, set `PACKTRACE_AUTH_REQUIRED=0`.
 - Local development metadata: `instance/packtrace.sqlite3`
 - Production metadata and encrypted Drive refresh tokens: PostgreSQL through
   `DATABASE_URL`
-- Drive-connected recordings: the signed-in user's `PackTrace Evidence` folder
-- Local fallback recordings: `instance/private_evidence/`
+- Drive-connected recordings: the signed-in user's private PackTrace folder
+- Local fallback recordings: `instance/private_evidence/` (legacy internal path)
 - Files use generated UUID names rather than order numbers.
 - Recordings are SHA-256 hashed before upload and Drive files are size-verified
-  before evidence is marked `VERIFIED`.
-- The application contains no delete path for unverified evidence.
+  before a recording is marked `VERIFIED`.
+- The application contains no delete path for unverified recordings.
 
 The `instance/` directory is intentionally ignored by Git.
 
@@ -96,10 +96,10 @@ uses `/tmp/packtrace` when it detects Vercel so the application can start and
 the scanning interface can be tested. Files in `/tmp` are not
 durable: the SQLite database and recordings can disappear whenever Vercel
 recycles or moves a function instance. Do not rely on this temporary storage
-for production evidence. Once Drive is connected, recordings use Google's
+for production recordings. Once Drive is connected, recordings use Google's
 resumable upload protocol and travel directly from the browser to the user's
 Drive, bypassing Vercel's request-body limit. Interrupted uploads are retained
 in that signed-in browser session's IndexedDB queue and can be retried from
 **Uploads**; the user's queued blobs are removed from the device at sign-out. PackTrace
-stores only metadata in PostgreSQL and never marks evidence verified until it
+stores only metadata in PostgreSQL and never marks a recording verified until it
 confirms the Drive file, its folder, and its byte size.

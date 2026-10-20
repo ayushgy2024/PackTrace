@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#090b0c">
-  <meta name="description" content="Sign in to the private PackTrace parcel evidence workspace.">
+  <meta name="description" content="Sign in to the private PackTrace parcel recording workspace.">
   <title>Sign in · PackTrace</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
 </head>
@@ -12,9 +12,9 @@
   <main class="auth-shell">
     <section class="auth-card">
       <div class="auth-brand"><span>✓</span> PackTrace</div>
-      <p class="auth-kicker">PRIVATE PARCEL EVIDENCE</p>
+      <p class="auth-kicker">PRIVATE PARCEL RECORDER</p>
       <h1>Welcome back</h1>
-      <p class="auth-intro">Sign in with a verified Google account to access shipment recordings and evidence.</p>
+      <p class="auth-intro">Sign in with a verified Google account to access your shipment recordings.</p>
       {% if auth_error %}<div class="auth-error" role="alert">{{ auth_error }}</div>{% endif %}
       {% if google_auth_configured %}
         <a class="google-button" href="{{ url_for('google_login') }}"><span>G</span> Continue with Google</a>

@@ -478,6 +478,34 @@ Deployment status: Not deployed / Preview / Production
 - **Commit status:** Explicitly approved and included in this checkpoint
 - **Deployment status:** Not deployed
 
+### 26 September 2026 — Recorder-focused product language
+
+- **Version:** 1.2 local working copy
+- **Area:** User-facing terminology
+- **Requested change:** Present PackTrace as a parcel recorder rather than an
+  evidence-management product.
+- **Resolution:** Renamed the visible navigation, dashboard, recording library,
+  capture controls, settings, sign-in copy, save messages, and empty states to
+  use “Recorder,” “Recording,” or “Recordings.” Existing internal route,
+  database, and API identifiers remain unchanged to preserve stored data and
+  deployment compatibility.
+- **Commit status:** Explicitly approved and included in this checkpoint
+- **Deployment status:** Not deployed
+
+### 21 October 2026 — Date-based recording register
+
+- **Version:** 1.2 local working copy
+- **Area:** Recording library
+- **Requested change:** Present saved videos in a simple register with Date,
+  Packaging Video, and Return Video columns while retaining the PackTrace visual
+  style.
+- **Resolution:** Grouped recordings by recording date, placed outbound and RTO
+  videos in their respective columns, and made each AWB a direct link to its
+  local or Google Drive video. Duration, verification state, duplicates, search,
+  and new-recording access remain available.
+- **Commit status:** Explicitly approved and included in this checkpoint
+- **Deployment status:** Not deployed
+
 ## Working rules
 
 1. Version 1.00 remains preserved in the local ZIP backup.

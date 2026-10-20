@@ -218,9 +218,15 @@ class ScannerApiTests(unittest.TestCase):
         self.post_evidence("PRIVATE-AWB-A")
         self.set_google_user("user-b", "b@example.com")
         self.post_evidence("PRIVATE-AWB-B")
+        self.post_evidence("PRIVATE-RTO-B", evidence_type="RTO")
         page = self.client.get("/evidence")
         self.assertIn(b"PRIVATE-AWB-B", page.data)
+        self.assertIn(b"PRIVATE-RTO-B", page.data)
         self.assertNotIn(b"PRIVATE-AWB-A", page.data)
+        self.assertIn(b"Packaging video", page.data)
+        self.assertIn(b"Return video", page.data)
+        self.assertIn(b'aria-label="Play packaging video for PRIVATE-AWB-B"', page.data)
+        self.assertIn(b'aria-label="Play return video for PRIVATE-RTO-B"', page.data)
 
     def test_drive_upload_is_verified_before_evidence_insert(self):
         self.set_google_user("drive-user", "drive@example.com")
