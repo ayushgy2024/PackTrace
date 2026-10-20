@@ -970,6 +970,25 @@
   const sidebar = $('#sidebar')
   const scrim = $('#nav-scrim')
   const logoutForm = $('#logout-form')
+  const evidenceSearch = $('#evidence-search')
+  if (evidenceSearch) {
+    const recordingRows = $$('.recording-data-row')
+    const resultCount = $('#recording-result-count')
+    const liveEmpty = $('#recording-live-empty')
+    const filterRecordings = () => {
+      const query = evidenceSearch.value.trim().toLocaleUpperCase()
+      let visibleCount = 0
+      recordingRows.forEach((row) => {
+        const matches = !query || row.dataset.recordingSearch.toLocaleUpperCase().includes(query)
+        row.hidden = !matches
+        if (matches) visibleCount += 1
+      })
+      if (resultCount) resultCount.textContent = `${visibleCount} ${visibleCount === 1 ? 'recording' : 'recordings'}`
+      if (liveEmpty) liveEmpty.hidden = visibleCount !== 0
+    }
+    evidenceSearch.addEventListener('input', filterRecordings)
+    filterRecordings()
+  }
   logoutForm?.addEventListener('submit', async (event) => {
     event.preventDefault()
     try {

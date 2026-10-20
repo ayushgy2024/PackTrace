@@ -499,10 +499,11 @@ Deployment status: Not deployed / Preview / Production
 - **Requested change:** Present saved videos in a simple register with Date,
   Packaging Video, and Return Video columns while retaining the PackTrace visual
   style.
-- **Resolution:** Grouped recordings by recording date, placed outbound and RTO
-  videos in their respective columns, and made each AWB a direct link to its
-  local or Google Drive video. Duration, verification state, duplicates, search,
-  and new-recording access remain available.
+- **Resolution:** Shows every recording on its own row with a separate date,
+  places outbound and RTO videos in their respective columns, and makes each AWB
+  a direct link to its local or Google Drive video. Search now filters the table
+  immediately as the user types. Duration, verification state, duplicates, the
+  server-side search fallback, and new-recording access remain available.
 - **Commit status:** Explicitly approved and included in this checkpoint
 - **Deployment status:** Not deployed
 

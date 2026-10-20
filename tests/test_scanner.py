@@ -227,6 +227,9 @@ class ScannerApiTests(unittest.TestCase):
         self.assertIn(b"Return video", page.data)
         self.assertIn(b'aria-label="Play packaging video for PRIVATE-AWB-B"', page.data)
         self.assertIn(b'aria-label="Play return video for PRIVATE-RTO-B"', page.data)
+        self.assertEqual(page.data.count(b'class="recording-data-row"'), 2)
+        browser_code = (Path(app_module.__file__).parent / "static" / "js" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("evidenceSearch.addEventListener('input', filterRecordings)", browser_code)
 
     def test_drive_upload_is_verified_before_evidence_insert(self):
         self.set_google_user("drive-user", "drive@example.com")

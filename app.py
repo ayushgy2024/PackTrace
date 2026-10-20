@@ -637,27 +637,6 @@ def evidence_rows(query: str = "", limit: int | None = None) -> list:
         return list(db.execute(sql, params).fetchall())
 
 
-def group_recordings_by_date(rows: list) -> list[dict[str, object]]:
-    """Build the date-based packaging/return register used by the library UI."""
-    groups: dict[str, dict[str, object]] = {}
-    for item in rows:
-        recorded_at = datetime.fromisoformat(str(item["recorded_at_utc"]).replace("Z", "+00:00"))
-        local_date = recorded_at.astimezone().date()
-        date_key = local_date.isoformat()
-        group = groups.setdefault(
-            date_key,
-            {
-                "date_iso": date_key,
-                "date_label": f"{local_date.day} {local_date:%b %Y}",
-                "outbound": [],
-                "rto": [],
-            },
-        )
-        bucket = "rto" if item["evidence_type"] == "RTO" else "outbound"
-        group[bucket].append(item)
-    return list(groups.values())
-
-
 @app.template_filter("filesize")
 def filesize(value: int) -> str:
     size = float(value)
@@ -677,6 +656,12 @@ def duration(value: int) -> str:
 def friendly_time(value: str) -> str:
     parsed = datetime.fromisoformat(value)
     return parsed.astimezone().strftime("%d %b %Y, %I:%M %p")
+
+
+@app.template_filter("recording_date")
+def recording_date(value: str) -> str:
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone()
+    return f"{parsed.day} {parsed:%b %Y}"
 
 
 @app.context_processor
@@ -724,7 +709,6 @@ def evidence_library():
         "evidence.html",
         active_page="evidence",
         evidence=rows,
-        recording_groups=group_recordings_by_date(rows),
         query=query,
         saved=saved,
         saved_to_drive=request.args.get("storage") == "drive",

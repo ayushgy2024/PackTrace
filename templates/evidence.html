@@ -5,32 +5,33 @@
 {% block content %}
 {% if saved %}<section class="notice-card {{ 'duplicate-notice' if duplicate_count > 1 }}"><span class="notice-icon">{{ '!' if duplicate_count > 1 else '✓' }}</span><div><strong>{{ saved }} was saved to your recording library</strong><p>{% if duplicate_count > 1 %}Duplicate warning: this AWB now has {{ duplicate_count }} recordings.{% elif saved_to_drive %}The Google Drive video was verified and its recording details were saved securely.{% else %}The video, checksum, timestamps, duration, and stop reason are stored locally.{% endif %}</p></div></section>{% endif %}
 <section class="section-card library-card">
-  <header class="library-tools"><form action="{{ url_for('evidence_library') }}"><span>⌕</span><input id="evidence-search" name="q" value="{{ query }}" placeholder="Search order or tracking code"><button>Search</button></form><button class="primary-button" data-record-type="OUTBOUND">＋ New recording</button></header>
-  <p class="result-count">{{ evidence|length }} {{ 'recording' if evidence|length == 1 else 'recordings' }}</p>
-  {% if recording_groups %}
+  <header class="library-tools"><form action="{{ url_for('evidence_library') }}"><span>⌕</span><input id="evidence-search" name="q" value="{{ query }}" placeholder="Search order or tracking code" autocomplete="off"><button type="submit">Search</button></form><button class="primary-button" data-record-type="OUTBOUND">＋ New recording</button></header>
+  <p class="result-count" id="recording-result-count">{{ evidence|length }} {{ 'recording' if evidence|length == 1 else 'recordings' }}</p>
+  {% if evidence %}
   <div class="recording-register">
     <table class="recording-table">
       <thead><tr><th>Date</th><th>Packaging video</th><th>Return video</th></tr></thead>
       <tbody>
-        {% for group in recording_groups %}
-        <tr>
-          <td class="recording-date"><time datetime="{{ group.date_iso }}">{{ group.date_label }}</time></td>
+        {% for item in evidence %}
+        <tr class="recording-data-row" data-recording-search="{{ item.order_code }} {{ item.evidence_type }} {{ item.recorded_at_utc|recording_date }}">
+          <td class="recording-date"><time datetime="{{ item.recorded_at_utc[:10] }}">{{ item.recorded_at_utc|recording_date }}</time></td>
           <td>
-            {% for item in group.outbound %}
+            {% if item.evidence_type == 'OUTBOUND' %}
             <a class="recording-link" href="{{ url_for('play_evidence', evidence_id=item.id) }}" target="_blank" rel="noopener" aria-label="Play packaging video for {{ item.order_code }}">
               <span class="register-play">▶</span><span><strong>{{ item.order_code }}</strong><small>{{ item.duration_seconds|duration }} · {{ 'Verified' if item.state == 'VERIFIED' else 'Pending' }}{% if item.duplicate_count > 1 %} · Duplicate ×{{ item.duplicate_count }}{% endif %}</small></span>
             </a>
-            {% else %}<span class="recording-empty">—</span>{% endfor %}
+            {% else %}<span class="recording-empty">—</span>{% endif %}
           </td>
           <td>
-            {% for item in group.rto %}
+            {% if item.evidence_type == 'RTO' %}
             <a class="recording-link return-link" href="{{ url_for('play_evidence', evidence_id=item.id) }}" target="_blank" rel="noopener" aria-label="Play return video for {{ item.order_code }}">
               <span class="register-play">▶</span><span><strong>{{ item.order_code }}</strong><small>{{ item.duration_seconds|duration }} · {{ 'Verified' if item.state == 'VERIFIED' else 'Pending' }}{% if item.duplicate_count > 1 %} · Duplicate ×{{ item.duplicate_count }}{% endif %}</small></span>
             </a>
-            {% else %}<span class="recording-empty">—</span>{% endfor %}
+            {% else %}<span class="recording-empty">—</span>{% endif %}
           </td>
         </tr>
         {% endfor %}
+        <tr id="recording-live-empty" hidden><td colspan="3"><span class="recording-empty">No matching recordings</span></td></tr>
       </tbody>
     </table>
   </div>
