@@ -16,7 +16,6 @@
       <nav>
         <a class="{{ 'active' if active_page == 'home' }}" href="{{ url_for('dashboard') }}"><span class="nav-icon">⌂</span>Home</a>
         <a class="{{ 'active' if active_page == 'evidence' }}" href="{{ url_for('evidence_library') }}"><span class="nav-icon">▤</span>Recordings</a>
-        <a class="{{ 'active' if active_page == 'uploads' }}" href="{{ url_for('uploads') }}"><span class="nav-icon">⇧</span>Uploads{% if totals.pending %}<b>{{ totals.pending }}</b>{% endif %}</a>
         <a class="{{ 'active' if active_page == 'settings' }}" href="{{ url_for('settings') }}"><span class="nav-icon">⚙</span>Settings</a>
       </nav>
       <div class="sidebar-bottom">

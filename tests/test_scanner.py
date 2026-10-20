@@ -157,9 +157,12 @@ class ScannerApiTests(unittest.TestCase):
         self.assertIn(b"Duplicate \xc3\x972", page.data)
 
     def test_all_english_pages_render(self):
-        for path in ("/", "/evidence", "/uploads", "/settings"):
+        for path in ("/", "/evidence", "/settings"):
             response = self.client.get(path)
             self.assertEqual(response.status_code, 200, path)
+        uploads = self.client.get("/uploads")
+        self.assertEqual(uploads.status_code, 200)
+        self.assertNotIn(b">Uploads<", self.client.get("/").data)
         settings = self.client.get("/settings")
         self.assertIn(b"Open-source foundation", settings.data)
         self.assertIn(b"independent, unofficial web application", settings.data)

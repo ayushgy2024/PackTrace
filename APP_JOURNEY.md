@@ -507,6 +507,19 @@ Deployment status: Not deployed / Preview / Production
 - **Commit status:** Explicitly approved and included in this checkpoint
 - **Deployment status:** Not deployed
 
+### 21 October 2026 — Simplified navigation
+
+- **Version:** 1.2 local working copy
+- **Area:** Sidebar and upload recovery
+- **Requested change:** Remove the Upload Queue section from the visible product
+  navigation.
+- **Resolution:** Removed Uploads from the sidebar. Direct recording uploads are
+  unchanged, and the unlinked `/uploads` recovery page remains available only
+  for manually recovering an interrupted recording without enabling silent
+  background uploads or discarding retained video data.
+- **Commit status:** Explicitly approved and included in this checkpoint
+- **Deployment status:** Not deployed
+
 ## Working rules
 
 1. Version 1.00 remains preserved in the local ZIP backup.

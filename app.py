@@ -726,7 +726,7 @@ def uploads():
                 (subject,),
             )
         )
-    return render_template("uploads.html", active_page="uploads", pending=pending)
+    return render_template("uploads.html", active_page="", pending=pending)
 
 
 @app.get("/settings")
