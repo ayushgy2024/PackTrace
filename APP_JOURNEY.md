@@ -520,6 +520,20 @@ Deployment status: Not deployed / Preview / Production
 - **Commit status:** Explicitly approved and included in this checkpoint
 - **Deployment status:** Not deployed
 
+### 21 October 2026 — Explicit barcode and QR scan modes
+
+- **Version:** 1.2 local working copy
+- **Area:** Camera scanner controls and false-positive prevention
+- **Requested change:** Let the operator choose whether the camera should scan a
+  QR code or a linear barcode.
+- **Resolution:** Added an accessible Barcode / QR Code segmented control to the
+  Proof Capture screen. Barcode mode is the safe default and accepts only common
+  linear shipping formats; QR mode accepts only QR codes. The selected mode is
+  enforced by native browser detection, bundled ZXing, label-photo scans, and
+  the Python ZXing-C++ fallback.
+- **Commit status:** Explicitly approved and included in this checkpoint
+- **Deployment status:** Not deployed
+
 ## Working rules
 
 1. Version 1.00 remains preserved in the local ZIP backup.

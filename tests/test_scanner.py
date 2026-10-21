@@ -28,7 +28,7 @@ class ScannerApiTests(unittest.TestCase):
         app_module.INSTANCE_DIR, app_module.VIDEO_DIR, app_module.DATABASE = self.original_paths
         self.temp_dir.cleanup()
 
-    def post_barcode(self, text: str, barcode_format) -> dict:
+    def post_barcode(self, text: str, barcode_format, scan_mode: str = "all") -> dict:
         barcode = zxingcpp.create_barcode(text, barcode_format)
         image = Image.fromarray(barcode.to_image(scale=5))
         payload = io.BytesIO()
@@ -36,7 +36,7 @@ class ScannerApiTests(unittest.TestCase):
         payload.seek(0)
         response = self.client.post(
             "/api/scan",
-            data={"frame": (payload, "camera-frame.png")},
+            data={"frame": (payload, "camera-frame.png"), "scan_mode": scan_mode},
             content_type="multipart/form-data",
         )
         self.assertEqual(response.status_code, 200)
@@ -49,6 +49,17 @@ class ScannerApiTests(unittest.TestCase):
     def test_reads_code128_tracking_number(self):
         result = self.post_barcode("784211901234", zxingcpp.BarcodeFormat.Code128)
         self.assertEqual(result["codes"][0]["text"], "784211901234")
+
+    def test_scan_mode_separates_qr_and_linear_barcodes(self):
+        qr_in_qr_mode = self.post_barcode("AWB-QR-78421190", zxingcpp.BarcodeFormat.QRCode, "qr")
+        qr_in_barcode_mode = self.post_barcode("AWB-QR-78421190", zxingcpp.BarcodeFormat.QRCode, "barcode")
+        code128_in_barcode_mode = self.post_barcode("784211901234", zxingcpp.BarcodeFormat.Code128, "barcode")
+        code128_in_qr_mode = self.post_barcode("784211901234", zxingcpp.BarcodeFormat.Code128, "qr")
+
+        self.assertEqual(qr_in_qr_mode["codes"][0]["text"], "AWB-QR-78421190")
+        self.assertEqual(qr_in_barcode_mode["codes"], [])
+        self.assertEqual(code128_in_barcode_mode["codes"][0]["text"], "784211901234")
+        self.assertEqual(code128_in_qr_mode["codes"], [])
 
     def test_reads_code128_from_large_phone_photo(self):
         barcode = Image.fromarray(
@@ -163,6 +174,10 @@ class ScannerApiTests(unittest.TestCase):
         uploads = self.client.get("/uploads")
         self.assertEqual(uploads.status_code, 200)
         self.assertNotIn(b">Uploads<", self.client.get("/").data)
+        dashboard = self.client.get("/")
+        self.assertIn(b'data-scan-mode="barcode"', dashboard.data)
+        self.assertIn(b'data-scan-mode="qr"', dashboard.data)
+        self.assertIn(b'aria-label="Code type to scan"', dashboard.data)
         settings = self.client.get("/settings")
         self.assertIn(b"Open-source foundation", settings.data)
         self.assertIn(b"independent, unofficial web application", settings.data)

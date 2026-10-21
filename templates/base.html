@@ -64,7 +64,7 @@
           </div>
           <div class="focus-gate" aria-hidden="true">
             <i class="gate-corner gate-a"></i><i class="gate-corner gate-b"></i>
-            <span class="gate-line"></span><b>ALIGN SHIPPING LABEL</b>
+            <span class="gate-line"></span><b id="scan-mode-guide">ALIGN BARCODE</b>
             <i class="gate-corner gate-c"></i><i class="gate-corner gate-d"></i>
           </div>
           <div class="camera-message" id="camera-message">Starting camera…</div>
@@ -72,6 +72,10 @@
         </div>
         <div class="camera-control-panel">
           <div class="capture-summary"><span><b>PackTrace</b><small>Secure parcel recorder</small></span><strong id="camera-elapsed">00:00</strong></div>
+          <div class="scan-mode-toggle" id="scan-mode-toggle" role="radiogroup" aria-label="Code type to scan">
+            <button class="scan-mode-option active" type="button" data-scan-mode="barcode" role="radio" aria-checked="true"><b>▥</b> Barcode</button>
+            <button class="scan-mode-option" type="button" data-scan-mode="qr" role="radio" aria-checked="false"><b>▦</b> QR code</button>
+          </div>
           <div class="scan-feedback" id="scan-feedback"><span></span> Waiting for an AWB scan to auto-record</div>
           <div class="camera-tool-row">
             <button class="round-tool" id="torch-button" type="button" disabled aria-pressed="false"><b>&#9889;</b><small>Flash unavailable</small></button>

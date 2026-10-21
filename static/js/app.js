@@ -13,6 +13,8 @@
   const cameraMessage = $('#camera-message')
   const recordState = $('#record-state')
   const scanFeedback = $('#scan-feedback')
+  const scanModeButtons = $$('[data-scan-mode]')
+  const scanModeGuide = $('#scan-mode-guide')
   const torchButton = $('#torch-button')
   const cameraElapsed = $('#camera-elapsed')
   let evidenceType = 'OUTBOUND'
@@ -24,6 +26,7 @@
   let recordTimer = null
   let scanTimer = null
   let detector = null
+  let scanMode = 'barcode'
   const scanCanvas = document.createElement('canvas')
   let scanAttempts = 0
   let serverScanInFlight = false
@@ -49,8 +52,35 @@
   const driveConnected = document.body.dataset.driveConnected === 'true'
   const currentUserSub = document.body.dataset.userSub || ''
   const uploadDatabaseName = 'packtrace-upload-queue-v1'
+  const linearBarcodeFormats = new Set(['code128', 'code39', 'code93', 'ean13', 'ean8', 'itf', 'upca', 'upce', 'codabar'])
 
   const csrfHeaders = (headers = {}) => ({ ...headers, 'X-CSRF-Token': csrfToken })
+
+  const normalizeBarcodeFormat = (format) => String(format || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+
+  function resultBarcodeFormat(result) {
+    const format = result?.format ?? result?.getBarcodeFormat?.() ?? ''
+    if (typeof format === 'number') return window.ZXingBrowser?.BarcodeFormat?.[format] || format
+    return format
+  }
+
+  function formatMatchesScanMode(format) {
+    const normalized = normalizeBarcodeFormat(format)
+    return scanMode === 'qr' ? normalized === 'qrcode' : linearBarcodeFormats.has(normalized)
+  }
+
+  function scanModeLabel() {
+    return scanMode === 'qr' ? 'QR code' : 'barcode'
+  }
+
+  function updateScanModeUI() {
+    scanModeButtons.forEach((button) => {
+      const active = button.dataset.scanMode === scanMode
+      button.classList.toggle('active', active)
+      button.setAttribute('aria-checked', String(active))
+    })
+    scanModeGuide.textContent = scanMode === 'qr' ? 'ALIGN QR CODE' : 'ALIGN BARCODE'
+  }
 
   function openUploadDatabase() {
     return new Promise((resolve, reject) => {
@@ -345,6 +375,9 @@
 
   function openModal(type) {
     evidenceType = type
+    scanMode = 'barcode'
+    updateScanModeUI()
+    scanModeButtons.forEach((button) => { button.disabled = false })
     $('#capture-type').textContent = type
     $('#capture-type').classList.toggle('rto', type === 'RTO')
     $('#capture-title').textContent = type === 'RTO' ? 'Record an RTO' : 'Pack an order'
@@ -365,7 +398,9 @@
   }
 
   async function createBarcodeDetector() {
-    const desired = ['qr_code', 'code_128', 'code_39', 'code_93', 'ean_13', 'ean_8', 'itf', 'upc_a', 'upc_e', 'codabar', 'data_matrix', 'aztec', 'pdf417']
+    const desired = scanMode === 'qr'
+      ? ['qr_code']
+      : ['code_128', 'code_39', 'code_93', 'ean_13', 'ean_8', 'itf', 'upc_a', 'upc_e', 'codabar']
     if ('BarcodeDetector' in window) {
       try {
         const supported = await window.BarcodeDetector.getSupportedFormats()
@@ -387,6 +422,18 @@
     return null
   }
 
+  async function selectScanMode(nextMode) {
+    if (!['barcode', 'qr'].includes(nextMode) || nextMode === scanMode || recorder?.state === 'recording') return
+    scanMode = nextMode
+    updateScanModeUI()
+    stopScanner()
+    detector = await createBarcodeDetector()
+    $('#camera-order-code').textContent = scanMode === 'qr' ? 'SCAN QR TRACKING CODE' : 'SCAN BARCODE LABEL'
+    scanFeedback.classList.remove('found')
+    scanFeedback.innerHTML = `<span></span> ${scanMode === 'qr' ? 'QR code' : 'Barcode'} mode selected — hold the label steady inside the frame`
+    if (stream && !cameraStep.hidden && !normalizedCode()) void scanFrame()
+  }
+
   function acceptTrackingCode(rawValue) {
     const value = extractTrackingCode(rawValue)
     if (value.length < 3 || value.length > 64) return false
@@ -396,6 +443,7 @@
     scanFeedback.classList.add('found')
     scanFeedback.innerHTML = `<span></span> Tracking number detected: <strong>${value}</strong>`
     recordButton.disabled = false
+    scanModeButtons.forEach((button) => { button.disabled = true })
     stopScanner()
     window.setTimeout(() => {
       if (stream && recorder?.state !== 'recording' && !cameraStep.hidden) startRecording()
@@ -470,6 +518,7 @@
       if (!blob) return false
       const form = new FormData()
       form.append('frame', blob, 'camera-frame.jpg')
+      form.append('scan_mode', scanMode)
       const response = await fetch('/api/scan', { method: 'POST', headers: csrfHeaders(), body: form })
       if (!response.ok) {
         scannerFailures += 1
@@ -480,7 +529,7 @@
         recorder?.state !== 'recording'
         || !sameRecordingCode(recordingCodeAtRequest, normalizedCode())
       )) return false
-      const values = (data.codes || []).map((code) => code.text)
+      const values = (data.codes || []).filter((code) => formatMatchesScanMode(code.format)).map((code) => code.text)
       if (requireRepeat ? registerDetections(values) : values.some((value) => acceptTrackingCode(value))) return true
       return false
     } catch {
@@ -499,11 +548,11 @@
       let rawValues = []
       if (detector?.kind === 'native') {
         const results = await detector.reader.detect(preview)
-        rawValues = results.map((result) => result.rawValue || '')
+        rawValues = results.filter((result) => formatMatchesScanMode(resultBarcodeFormat(result))).map((result) => result.rawValue || '')
       } else if (detector?.kind === 'zxing') {
         // ZXing browser releases have exposed both synchronous and Promise results.
         const result = await Promise.resolve(detector.reader.decodeFromCanvas(scanCanvas))
-        rawValues = [result.getText?.() || result.text || '']
+        if (formatMatchesScanMode(resultBarcodeFormat(result))) rawValues = [result.getText?.() || result.text || '']
       }
       if (registerDetections(rawValues)) return
     } catch {
@@ -547,7 +596,7 @@
       showToast('Choose a JPG, PNG, or other label image.', true)
       return
     }
-    scanFeedback.innerHTML = '<span></span> Reading barcode from label photo…'
+    scanFeedback.innerHTML = `<span></span> Reading ${scanModeLabel()} from label photo…`
     const objectUrl = URL.createObjectURL(file)
     try {
       const image = new Image()
@@ -561,17 +610,19 @@
 
       if (detector?.kind === 'native') {
         const results = await detector.reader.detect(scanCanvas)
-        for (const result of results) if (acceptTrackingCode(result.rawValue)) return
+        for (const result of results) {
+          if (formatMatchesScanMode(resultBarcodeFormat(result)) && acceptTrackingCode(result.rawValue)) return
+        }
       } else if (detector?.kind === 'zxing') {
         try {
           const result = await Promise.resolve(detector.reader.decodeFromCanvas(scanCanvas))
-          if (acceptTrackingCode(result.getText?.() || result.text || '')) return
+          if (formatMatchesScanMode(resultBarcodeFormat(result)) && acceptTrackingCode(result.getText?.() || result.text || '')) return
         } catch {
           // The Python decoder below is more tolerant of shipping-label photos.
         }
       }
       if (!await scanOnServer(false)) {
-        scanFeedback.innerHTML = '<span></span> No readable code found — move closer, avoid glare, and keep the entire barcode in frame'
+        scanFeedback.innerHTML = `<span></span> No readable ${scanModeLabel()} found — move closer, avoid glare, and keep the code inside the frame`
       }
     } catch {
       showToast('That label photo could not be read.', true)
@@ -583,11 +634,13 @@
   async function openCamera(autoRecord) {
     showStep('camera')
     const hasManualCode = normalizedCode().length >= 3
-    $('#camera-order-code').textContent = hasManualCode ? normalizedCode() : 'SCAN AWB / TRACKING LABEL'
+    scanModeButtons.forEach((button) => { button.disabled = hasManualCode })
+    updateScanModeUI()
+    $('#camera-order-code').textContent = hasManualCode ? normalizedCode() : (scanMode === 'qr' ? 'SCAN QR TRACKING CODE' : 'SCAN BARCODE LABEL')
     recordState.textContent = hasManualCode ? 'CODE READY' : 'SCANNING'
     recordState.classList.remove('live')
     scanFeedback.classList.remove('found')
-    scanFeedback.innerHTML = '<span></span> Reading QR and barcode — hold the label steady inside the frame'
+    scanFeedback.innerHTML = `<span></span> Reading ${scanModeLabel()} only — hold the label steady inside the frame`
     cameraMessage.textContent = 'Starting camera…'
     cameraMessage.hidden = false
     recordButton.disabled = true
@@ -944,6 +997,7 @@
     }
   }
 
+  scanModeButtons.forEach((button) => button.addEventListener('click', () => void selectScanMode(button.dataset.scanMode)))
   $$('.action-card[data-record-type], [data-record-type]').forEach((button) => button.addEventListener('click', () => openModal(button.dataset.recordType)))
   orderInput.addEventListener('input', () => { openCameraButton.disabled = normalizedCode().length < 3 })
   orderInput.addEventListener('keydown', (event) => {

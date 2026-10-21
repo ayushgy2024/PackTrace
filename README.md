@@ -11,6 +11,10 @@ even when the browser decoder is unavailable. A label photo can also be selected
 for difficult scans, and manual tracking-number entry remains available for
 damaged or unreadable labels.
 
+The camera includes a **Barcode / QR code** selector. Barcode mode reads only
+supported linear shipping barcodes and ignores QR codes; QR mode reads only QR
+codes. The selected mode also applies to label-photo and Python fallback scans.
+
 The first successful AWB scan starts recording automatically. Move the label
 out of view; once the scanner is armed, showing the same AWB again stops the
 recording, saves the video, and inserts its metadata into the recording

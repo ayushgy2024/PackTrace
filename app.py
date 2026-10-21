@@ -1198,6 +1198,9 @@ def start_recording_session():
 def scan_shipping_label():
     """Decode QR and 1D/2D shipping barcodes from a camera-frame JPEG."""
     max_frame_bytes = 10 * 1024 * 1024
+    scan_mode = request.form.get("scan_mode", "all").strip().lower()
+    if scan_mode not in {"all", "barcode", "qr"}:
+        return jsonify(error="Scan mode must be barcode or qr."), 400
     frame = request.files.get("frame")
     if frame is None:
         return jsonify(error="A camera frame is required."), 400
@@ -1241,6 +1244,13 @@ def scan_shipping_label():
     for result in results:
         text = result.text.strip()
         barcode_format = str(result.format)
+        normalized_format = re.sub(r"[^a-z0-9]", "", barcode_format.lower())
+        if scan_mode == "qr" and normalized_format != "qrcode":
+            continue
+        if scan_mode == "barcode" and normalized_format not in {
+            "code128", "code39", "code93", "ean13", "ean8", "itf", "upca", "upce", "codabar"
+        }:
+            continue
         key = (text, barcode_format)
         if text and key not in seen:
             seen.add(key)

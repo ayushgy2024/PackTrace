@@ -51,6 +51,8 @@ main{width:calc(100% - 250px);margin-left:250px}.topbar{height:105px;display:fle
 .capture-summary{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
 .capture-summary>span{display:flex;flex-direction:column}.capture-summary b{color:var(--signal);font:800 14px 'Manrope';letter-spacing:.3px}.capture-summary small{color:#717879;font-size:8px}
 .capture-summary>strong{padding:6px 11px;border:1px solid #303638;border-radius:8px;color:#fff;background:#090b0c;font:700 14px 'Manrope';letter-spacing:1px}
+.scan-mode-toggle{display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-bottom:8px;padding:3px;border:1px solid #303638;border-radius:10px;background:#090b0c}
+.scan-mode-option{min-height:32px;border:0;border-radius:7px;color:#8f9794;background:transparent;font-size:10px;font-weight:700}.scan-mode-option b{margin-right:5px;font-size:13px}.scan-mode-option.active{color:#0a0c0b;background:var(--signal);box-shadow:0 0 16px #d8ff3e20}.scan-mode-option:disabled{opacity:.5;cursor:not-allowed}
 .camera-control-panel .scan-feedback{width:100%;min-height:39px;height:auto;padding:9px 12px;justify-content:flex-start;border:1px solid #313739;border-radius:9px;color:#c7ccca;background:#0b0d0e;text-align:left}
 .camera-control-panel .scan-feedback span{flex:0 0 auto;background:var(--signal);box-shadow:0 0 10px var(--signal)}
 .camera-tool-row{grid-template-columns:1fr 102px 1fr;margin:auto 0 6px}
